@@ -1,0 +1,6 @@
+*~
+/usr/
+/build/
+*.o
+/tags
+debian/copyright
