@@ -114,7 +114,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     pjsip_reject_contact_hdr* new_hdr = pjsip_reject_contact_hdr_create(pool);
     pjsip_param* phone = PJ_POOL_ALLOC_T(pool, pjsip_param);
     pj_strdup(pool, &phone->name, &STR_PHONE);
-    pj_strdup(pool, &phone->value, (pj_str_t*)"");
+    phone->value.slen = 0;
     pj_list_insert_after(&new_hdr->feature_set, phone);
     pjsip_msg_add_hdr(voip_req, (pjsip_hdr*)new_hdr);
   }
@@ -174,7 +174,7 @@ void LocalRoamingAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
     new_hdr->required_match = true;
     pjsip_param* phone = PJ_POOL_ALLOC_T(pool, pjsip_param);
     pj_strdup(pool, &phone->name, &STR_PHONE);
-    pj_strdup(pool, &phone->value, (pj_str_t*)"");
+    phone->value.slen = 0;
     pj_list_insert_after(&new_hdr->feature_set, phone);
     pjsip_msg_add_hdr(_original_req, (pjsip_hdr*)new_hdr);
 
