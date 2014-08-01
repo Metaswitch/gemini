@@ -39,6 +39,7 @@
 #include "localroaming.h"
 #include "pjutils.h"
 #include "constants.h"
+#include "custom_headers.h"
 #include "geminisasevent.h"
 
 /// Returns a new LocalRoamingAppServerTsx if the request is either a
@@ -47,7 +48,7 @@ AppServerTsx* LocalRoamingAppServer::get_app_tsx(AppServerTsxHelper* helper,
                                  pjsip_msg* req)
 {
   if ((req->line.req.method.id != PJSIP_INVITE_METHOD) &&
-      (req->line.req.method.id != PJSIP_SUBSCRIBE_METHOD))
+      (pjsip_method_cmp(&req->line.req.method, pjsip_get_subscribe_method())))
   {
     // Request isn't an INVITE or SUBSCRIBE, no processing is required.
     return NULL;
@@ -66,17 +67,19 @@ LocalRoamingAppServerTsx::LocalRoamingAppServerTsx(AppServerTsxHelper* helper) :
 }
 
 /// Destructor
-LocalRoamingAppServerTsx::LocalRoamingAppServerTsx()
+LocalRoamingAppServerTsx::~LocalRoamingAppServerTsx()
 {
   if (_original_req != NULL)
   {
     free_msg(_original_req);
     _original_req = NULL;
+  }
 }
 
 void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
 {
   _method = req->line.req.method.id;
+  pjsip_sip_uri* sip_uri;
 
   LOG_DEBUG("LocalRoamingAS - process request %p, method %s", req, _method);
 
@@ -108,12 +111,12 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     pj_pool_t* pool = get_pool(voip_req);
 
     // Create an Reject-Contact header and add the "+sip.phone" parameter.
-    pjsip_accept_contact_hdr* new_hdr = pjsip_reject_contact_hdr_create(pool);
+    pjsip_reject_contact_hdr* new_hdr = pjsip_reject_contact_hdr_create(pool);
     pjsip_param* phone = PJ_POOL_ALLOC_T(pool, pjsip_param);
     pj_strdup(pool, &phone->name, &STR_PHONE);
-    pj_strdup(pool, &phone->value, "");
+    pj_strdup(pool, &phone->value, '');
     pj_list_insert_after(&new_hdr->feature_set, phone);
-    pjsip_msg_add_hdr(voip_req, new_hdr);
+    pjsip_msg_add_hdr(voip_req, (pjsip_hdr*)new_hdr);
   }
 
   // Add the twinned-prefix to the front of the URI to fork the second
@@ -121,7 +124,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
   if (PJSIP_URI_SCHEME_IS_SIP(mobile_req->line.req.uri)) 
   {
     LOG_DEBUG("Creating forked request to twinned mobile device");
-    pjsip_sip_uri* sip_uri = (pjsip_sip_uri*)mobile_req->line.req.uri;
+    sip_uri = (pjsip_sip_uri*)mobile_req->line.req.uri;
     pj_str_t new_user = twinning_prefix->value;
     pj_strcat(&new_user, &sip_uri->user);
     pj_strdup(get_pool(mobile_req), &sip_uri->user, &new_user);
@@ -139,7 +142,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
   // Report the fact we're forking the request to SAS, including
   // the new native mobile URI.
   SAS::Event event(trail(), SASEvent::FORKING_ON_REQ, 0);
-  event.add_var_param(PJUtils::uri_to_string(PJSIP_URI_IN_REQ_URI, sip_uri));
+  event.add_var_param(PJUtils::uri_to_string(PJSIP_URI_IN_REQ_URI, (pjsip_uri*)sip_uri));
   SAS::report_event(event);
 
   _original_req = req;
@@ -171,9 +174,9 @@ void LocalRoamingAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
     new_hdr->required_match = true;
     pjsip_param* phone = PJ_POOL_ALLOC_T(pool, pjsip_param);
     pj_strdup(pool, &phone->name, &STR_PHONE);
-    pj_strdup(pool, &phone->value, "");
+    pj_strdup(pool, &phone->value, '');
     pj_list_insert_after(&new_hdr->feature_set, phone);
-    pjsip_msg_add_hdr(_original_req, new_hdr);
+    pjsip_msg_add_hdr(_original_req, (pjsip_hdr*)new_hdr);
 
     free_msg(rsp);
     send_request(_original_req);

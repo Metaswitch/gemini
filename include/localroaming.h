@@ -42,6 +42,7 @@ extern "C" {
 #include <pjsip.h>
 #include <pjlib-util.h>
 #include <pjlib.h>
+#include <pjsip-simple/evsub.h>
 }
 
 #include "appserver.h"
@@ -125,3 +126,5 @@ private:
   /// registered.
   bool _attempted_mobile_voip_client;
 };
+
+#endif
