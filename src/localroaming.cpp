@@ -45,7 +45,7 @@
 /// Returns a new LocalRoamingAppServerTsx if the request is either a
 /// SUBSCRIBE or a INVITE.
 AppServerTsx* LocalRoamingAppServer::get_app_tsx(AppServerTsxHelper* helper,
-                                 pjsip_msg* req)
+                                                 pjsip_msg* req)
 {
   if ((req->line.req.method.id != PJSIP_INVITE_METHOD) &&
       (pjsip_method_cmp(&req->line.req.method, pjsip_get_subscribe_method())))
@@ -61,6 +61,7 @@ AppServerTsx* LocalRoamingAppServer::get_app_tsx(AppServerTsxHelper* helper,
 /// Constructor
 LocalRoamingAppServerTsx::LocalRoamingAppServerTsx(AppServerTsxHelper* helper) :
   AppServerTsx(helper),
+  _original_req(NULL),
   _mobile_fork_id(0),
   _attempted_mobile_voip_client(false)
 {
@@ -69,11 +70,7 @@ LocalRoamingAppServerTsx::LocalRoamingAppServerTsx(AppServerTsxHelper* helper) :
 /// Destructor
 LocalRoamingAppServerTsx::~LocalRoamingAppServerTsx()
 {
-  if (_original_req != NULL)
-  {
-    free_msg(_original_req);
-    _original_req = NULL;
-  }
+  _original_req = NULL;
 }
 
 void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
@@ -81,10 +78,17 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
   _method = req->line.req.method.id;
   pjsip_sip_uri* sip_uri;
 
-  LOG_DEBUG("LocalRoamingAS - process request %p, method %s", req, _method);
+  LOG_DEBUG("LocalRoamingAS - process request %p, method %d", req, _method);
 
   // Check the URI in top route header has a "twin-prefix" parameter.
   pjsip_route_hdr* route_hdr = (pjsip_route_hdr*)pjsip_msg_find_hdr(req, PJSIP_H_ROUTE, NULL);
+  if (route_hdr == NULL)
+  {
+    LOG_ERROR("Couldn't find gemini Route header");
+    pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
+    send_response(rsp);
+    return;
+  }
   pjsip_sip_uri* route_hdr_uri = (pjsip_sip_uri*)route_hdr->name_addr.uri;
   pjsip_param* twinning_prefix = pjsip_param_find(&route_hdr_uri->other_param, &STR_TWIN_PRE);
   if (twinning_prefix == NULL)
@@ -92,8 +96,8 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     LOG_ERROR("No twinning prefix for local-roaming forking");
     SAS::Event event(trail(), SASEvent::NO_TWIN_PREFIX, 0);
     SAS::report_event(event);
-    create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
-    send_response(req);
+    pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
+    send_response(rsp);
     return;
   }
 
@@ -110,7 +114,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     LOG_DEBUG("Add Reject-Contact header to VoIP client request");
     pj_pool_t* pool = get_pool(voip_req);
 
-    // Create an Reject-Contact header and add the "+sip.phone" parameter.
+    // Create a Reject-Contact header and add the "+sip.phone" parameter.
     pjsip_reject_contact_hdr* new_hdr = pjsip_reject_contact_hdr_create(pool);
     pjsip_param* phone = PJ_POOL_ALLOC_T(pool, pjsip_param);
     pj_strdup(pool, &phone->name, &STR_PHONE);
@@ -134,8 +138,8 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     LOG_DEBUG("Not SIP URI, so cancel forking");
     free_msg(voip_req);
     free_msg(mobile_req);
-    create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
-    send_response(req);
+    pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
+    send_response(rsp);
     return;
   }
 
@@ -180,6 +184,7 @@ void LocalRoamingAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
 
     free_msg(rsp);
     send_request(_original_req);
+    _original_req = NULL;
 
     // Set the flag to indicate we've now tried reaching the VoIP client
     // on the mobile already so we don't come through here again. We

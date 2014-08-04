@@ -60,6 +60,11 @@ class LocalRoamingAppServerTsx;
 class LocalRoamingAppServer : public AppServer
 {
 public:
+  /// Constructor
+  LocalRoamingAppServer(const std::string& _service_name) : AppServer(_service_name)
+  {
+  }
+
   /// Called when the system determines the service should be invoked for a
   /// received request.  The AppServer can either return NULL indicating it
   /// does not want to process the request, or create a suitable object
