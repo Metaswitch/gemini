@@ -38,7 +38,7 @@
 #include "log.h"
 #include "localroaming.h"
 #include "pjutils.h"
-#include "constants.h"
+#include "gemini_constants.h"
 #include "custom_headers.h"
 #include "geminisasevent.h"
 
@@ -90,10 +90,10 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     return;
   }
   pjsip_sip_uri* route_hdr_uri = (pjsip_sip_uri*)route_hdr->name_addr.uri;
-  pjsip_param* twinning_prefix = pjsip_param_find(&route_hdr_uri->other_param, &STR_TWIN_PRE);
-  if (twinning_prefix == NULL)
+  pjsip_param* twin_prefix = pjsip_param_find(&route_hdr_uri->other_param, &STR_TWIN_PRE);
+  if (twin_prefix == NULL)
   {
-    LOG_ERROR("No twinning prefix for local-roaming forking");
+    LOG_ERROR("No twin prefix for local-roaming forking");
     SAS::Event event(trail(), SASEvent::NO_TWIN_PREFIX, 0);
     SAS::report_event(event);
     pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
@@ -117,21 +117,21 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     // Create a Reject-Contact header and add the "+sip.phone" parameter.
     pjsip_reject_contact_hdr* new_hdr = pjsip_reject_contact_hdr_create(pool);
     pjsip_param* phone = PJ_POOL_ALLOC_T(pool, pjsip_param);
-    pj_strdup(pool, &phone->name, &STR_PHONE);
+    phone->name = STR_PHONE;
     phone->value.slen = 0;
     pj_list_insert_after(&new_hdr->feature_set, phone);
     pjsip_msg_add_hdr(voip_req, (pjsip_hdr*)new_hdr);
   }
 
-  // Add the twinned-prefix to the front of the URI to fork the second
+  // Add the twin-prefix to the front of the URI to fork the second
   // request off to the twinned mobile device.
   if (PJSIP_URI_SCHEME_IS_SIP(mobile_req->line.req.uri)) 
   {
     LOG_DEBUG("Creating forked request to twinned mobile device");
     sip_uri = (pjsip_sip_uri*)mobile_req->line.req.uri;
-    pj_str_t new_user = twinning_prefix->value;
-    pj_strcat(&new_user, &sip_uri->user);
-    pj_strdup(get_pool(mobile_req), &sip_uri->user, &new_user);
+    std::string new_user = PJUtils::pj_str_to_string(&twin_prefix->value) +
+                           PJUtils::pj_str_to_string(&sip_uri->user);
+    sip_uri->user = pj_strdup3(get_pool(mobile_req), new_user.c_str());
   }
   else
   {
@@ -177,7 +177,7 @@ void LocalRoamingAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
     new_hdr->explicit_match = true;
     new_hdr->required_match = true;
     pjsip_param* phone = PJ_POOL_ALLOC_T(pool, pjsip_param);
-    pj_strdup(pool, &phone->name, &STR_PHONE);
+    phone->name = STR_PHONE;
     phone->value.slen = 0;
     pj_list_insert_after(&new_hdr->feature_set, phone);
     pjsip_msg_add_hdr(_original_req, (pjsip_hdr*)new_hdr);

@@ -47,6 +47,7 @@
 #include "pjutils.h"
 #include "custom_headers.h"
 #include "constants.h"
+#include "gemini_constants.h"
 
 using namespace std;
 using testing::InSequence;
@@ -419,4 +420,42 @@ TEST_F(LocalRoamingAppServerTest, NoSIPURI)
     EXPECT_CALL(*_helper, send_response(rsp));
   }
   as_tsx.on_initial_request(req);
+}
+
+// Tests forking where the mobile device rejects the call, but
+// not with a 480.
+TEST_F(LocalRoamingAppServerTest, ForkMobileRejectsNot480)
+{
+  Message msg;
+  msg._route = "Route: <sip:mobile-twinned@gemini.homedomain;twin-prefix=111>";
+  LocalRoamingAppServerTsx as_tsx(_helper);
+
+  pjsip_msg* req = parse_msg(msg.get_request());
+  pjsip_msg* voip = parse_msg(msg.get_request());
+  pjsip_msg* mobile = parse_msg(msg.get_request());
+  {
+    // Use a sequence to ensure this happens in order.
+    InSequence seq;
+    EXPECT_CALL(*_helper, clone_request(req))
+      .WillOnce(Return(voip))
+      .WillOnce(Return(mobile));
+    EXPECT_CALL(*_helper, get_pool(voip))
+      .WillOnce(Return(stack_data.pool));
+    EXPECT_CALL(*_helper, get_pool(mobile))
+      .WillOnce(Return(stack_data.pool));
+    EXPECT_CALL(*_helper, send_request(voip));
+    EXPECT_CALL(*_helper, send_request(mobile))
+      .WillOnce(Return(MOBILE_FORK_ID));
+  }
+  as_tsx.on_initial_request(req);
+
+  msg._status = "408 Request Timeout";
+  pjsip_msg* rsp = parse_msg(msg.get_response());
+  EXPECT_CALL(*_helper, send_response(rsp));
+  as_tsx.on_response(rsp, MOBILE_FORK_ID);
+
+  msg._status = "200 OK";
+  rsp = parse_msg(msg.get_response());
+  EXPECT_CALL(*_helper, send_response(rsp));
+  as_tsx.on_response(rsp, VOIP_FORK_ID);
 }
