@@ -91,10 +91,20 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
   }
   pjsip_sip_uri* route_hdr_uri = (pjsip_sip_uri*)route_hdr->name_addr.uri;
   pjsip_param* twin_prefix = pjsip_param_find(&route_hdr_uri->other_param, &STR_TWIN_PRE);
-  if ((twin_prefix == NULL) || (twin_prefix->value.slen == 0))
+  if (twin_prefix == NULL)
   {
     LOG_ERROR("No twin prefix for local-roaming forking");
     SAS::Event event(trail(), SASEvent::NO_TWIN_PREFIX, 0);
+    SAS::report_event(event);
+    pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
+    send_response(rsp);
+    return;
+  }
+
+  if (twin_prefix->value.slen == 0)
+  {
+    LOG_ERROR("Empty twin prefix - can't do local-roaming forking");
+    SAS::Event event(trail(), SASEvent::EMPTY_TWIN_PREFIX, 0);
     SAS::report_event(event);
     pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
     send_response(rsp);

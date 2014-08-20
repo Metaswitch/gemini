@@ -46,6 +46,7 @@ namespace SASEvent
   //----------------------------------------------------------------------------
   const int FORKING_ON_REQ = GEMINI_BASE + 0x000000;
   const int NO_TWIN_PREFIX = GEMINI_BASE + 0x000001;
+  const int EMPTY_TWIN_PREFIX = GEMINI_BASE + 0x000002;
 
   const int FORKING_ON_480_RSP = GEMINI_BASE + 0x000010;
 } //namespace SASEvent
