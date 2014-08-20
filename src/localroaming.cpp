@@ -108,6 +108,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     SAS::report_event(event);
     pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
     send_response(rsp);
+    free_msg(req);
     return;
   }
 

@@ -408,6 +408,7 @@ TEST_F(LocalRoamingAppServerTest, EmptyTwinPrefix)
     EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
       .WillOnce(Return(rsp));
     EXPECT_CALL(*_helper, send_response(rsp));
+    EXPECT_CALL(*_helper, free_msg(req));
   }
   as_tsx.on_initial_request(req);
 }
