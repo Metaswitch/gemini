@@ -363,7 +363,7 @@ TEST_F(LocalRoamingAppServerTest, NoRouteHeader)
   Message msg;
   LocalRoamingAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavaiable";
+  msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
@@ -382,7 +382,7 @@ TEST_F(LocalRoamingAppServerTest, NoTwinPrefix)
   msg._route = "Route: <sip:mobile-twinned@gemini.homedomain>";
   LocalRoamingAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavaiable";
+  msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
@@ -401,7 +401,7 @@ TEST_F(LocalRoamingAppServerTest, EmptyTwinPrefix)
   msg._route = "Route: <sip:mobile-twinned@gemini.homedomain;twin-prefix=>";
   LocalRoamingAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavaiable";
+  msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
@@ -423,7 +423,7 @@ TEST_F(LocalRoamingAppServerTest, NoSIPURI)
   pjsip_msg* req = parse_msg(msg.get_request());
   pjsip_msg* voip = parse_msg(msg.get_request());
   pjsip_msg* mobile = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavaiable";
+  msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
