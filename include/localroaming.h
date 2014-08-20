@@ -116,9 +116,6 @@ public:
   virtual void on_response(pjsip_msg* rsp, int fork_id);
 
 private:
-  /// A copy of the original request.
-  pjsip_msg* _original_req; 
-
   /// The method.
   pjsip_method_e _method;
 

@@ -98,7 +98,7 @@ public:
     return true;
   }
 
-  static MockAppServerTsxHelper* _helper; 
+  static MockAppServerTsxHelper* _helper;
 
   static const int VOIP_FORK_ID;
   static const int MOBILE_FORK_ID;
@@ -221,7 +221,7 @@ MATCHER_P(ReqUriEquals, uri, "")
 {
   std::string arg_uri = PJUtils::uri_to_string(PJSIP_URI_IN_REQ_URI, arg->line.req.uri);
   LOG_DEBUG("arg_uri %s", arg_uri.c_str());
-  return arg_uri == uri; 
+  return arg_uri == uri;
 }
 
 // Test creation and destruction of the LocalRoamingAppServer objects.
@@ -263,31 +263,31 @@ TEST_F(LocalRoamingAppServerTest, CreateLocalRoamingAppServer)
 TEST_F(LocalRoamingAppServerTest, ForkMobileVoipClient)
 {
   Message msg;
-  msg._route = "Route: <sip:mobile-twinned@gemini.homedomain;twin-prefix=111>";
   LocalRoamingAppServerTsx as_tsx(_helper);
 
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
   pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_msg* voip = parse_msg(msg.get_request());
   pjsip_msg* mobile = parse_msg(msg.get_request());
   {
     // Use a sequence to ensure this happens in order.
     InSequence seq;
+    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
     EXPECT_CALL(*_helper, clone_request(req))
-      .WillOnce(Return(voip))
       .WillOnce(Return(mobile));
-    EXPECT_CALL(*_helper, get_pool(voip))
+    EXPECT_CALL(*_helper, get_pool(req))
       .WillOnce(Return(stack_data.pool));
     EXPECT_CALL(*_helper, get_pool(mobile))
       .WillOnce(Return(stack_data.pool));
-    EXPECT_CALL(*_helper, send_request(voip));
+    EXPECT_CALL(*_helper, send_request(req));
     EXPECT_CALL(*_helper, send_request(mobile))
       .WillOnce(Return(MOBILE_FORK_ID));
   }
   as_tsx.on_initial_request(req);
 
-  EXPECT_THAT(voip, ReqUriEquals("sip:6505551234@homedomain"));
+  EXPECT_THAT(req, ReqUriEquals("sip:6505551234@homedomain"));
   pjsip_reject_contact_hdr* reject_contact_hdr =
-    (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(voip, &STR_REJECT_CONTACT, NULL);
+    (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(req, &STR_REJECT_CONTACT, NULL);
   std::unordered_map<std::string, std::string> expected_params;
   expected_params[PJUtils::pj_str_to_string(&STR_PHONE)] = "";
   EXPECT_TRUE(check_params(&reject_contact_hdr->feature_set, expected_params));
@@ -295,12 +295,15 @@ TEST_F(LocalRoamingAppServerTest, ForkMobileVoipClient)
 
   msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
+  EXPECT_CALL(*_helper, original_request())
+    .WillOnce(Return(req));
   EXPECT_CALL(*_helper, get_pool(req))
     .WillOnce(Return(stack_data.pool));
   EXPECT_CALL(*_helper, free_msg(rsp));
   EXPECT_CALL(*_helper, send_request(req)).
     WillOnce(Return(MOBILE_VOIP_FORK_ID));
   as_tsx.on_response(rsp, MOBILE_FORK_ID);
+
   EXPECT_THAT(req, ReqUriEquals("sip:6505551234@homedomain"));
   pjsip_accept_contact_hdr* accept_contact_hdr =
     (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(req, &STR_ACCEPT_CONTACT, NULL);
@@ -319,35 +322,35 @@ TEST_F(LocalRoamingAppServerTest, ForkSubscribe)
 {
   Message msg;
   msg._method = "SUBSCRIBE";
-  msg._route = "Route: <sip:mobile-twinned@gemini.homedomain;twin-prefix=111>";
   LocalRoamingAppServerTsx as_tsx(_helper);
 
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
   pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_msg* voip = parse_msg(msg.get_request());
   pjsip_msg* mobile = parse_msg(msg.get_request());
   {
     // Use a sequence to ensure this happens in order.
     InSequence seq;
+    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
     EXPECT_CALL(*_helper, clone_request(req))
-      .WillOnce(Return(voip))
       .WillOnce(Return(mobile));
     EXPECT_CALL(*_helper, get_pool(mobile))
       .WillOnce(Return(stack_data.pool));
-    EXPECT_CALL(*_helper, send_request(voip))
-      .WillOnce(Return(VOIP_FORK_ID));
+    EXPECT_CALL(*_helper, send_request(req));
     EXPECT_CALL(*_helper, send_request(mobile))
       .WillOnce(Return(MOBILE_FORK_ID));
   }
   as_tsx.on_initial_request(req);
 
-  EXPECT_THAT(voip, ReqUriEquals("sip:6505551234@homedomain"));
+  EXPECT_THAT(req, ReqUriEquals("sip:6505551234@homedomain"));
   pjsip_reject_contact_hdr* reject_contact_hdr =
-    (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(voip, &STR_REJECT_CONTACT, NULL);
+    (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(req, &STR_REJECT_CONTACT, NULL);
   EXPECT_TRUE(reject_contact_hdr == NULL);
   EXPECT_THAT(mobile, ReqUriEquals("sip:1116505551234@homedomain"));
 
   msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
+
   EXPECT_CALL(*_helper, send_response(rsp));
   as_tsx.on_response(rsp, MOBILE_FORK_ID);
 
@@ -362,14 +365,18 @@ TEST_F(LocalRoamingAppServerTest, NoRouteHeader)
 {
   Message msg;
   LocalRoamingAppServerTsx as_tsx(_helper);
+
+  const pjsip_route_hdr* hdr = NULL;
   pjsip_msg* req = parse_msg(msg.get_request());
   msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
+    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
     EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
       .WillOnce(Return(rsp));
     EXPECT_CALL(*_helper, send_response(rsp));
+    EXPECT_CALL(*_helper, free_msg(req));
   }
   as_tsx.on_initial_request(req);
 }
@@ -379,16 +386,19 @@ TEST_F(LocalRoamingAppServerTest, NoRouteHeader)
 TEST_F(LocalRoamingAppServerTest, NoTwinPrefix)
 {
   Message msg;
-  msg._route = "Route: <sip:mobile-twinned@gemini.homedomain>";
   LocalRoamingAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavailable";
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain", stack_data.pool);
+
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
+    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
     EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
       .WillOnce(Return(rsp));
     EXPECT_CALL(*_helper, send_response(rsp));
+    EXPECT_CALL(*_helper, free_msg(req));
   }
   as_tsx.on_initial_request(req);
 }
@@ -398,13 +408,14 @@ TEST_F(LocalRoamingAppServerTest, NoTwinPrefix)
 TEST_F(LocalRoamingAppServerTest, EmptyTwinPrefix)
 {
   Message msg;
-  msg._route = "Route: <sip:mobile-twinned@gemini.homedomain;twin-prefix=>";
   LocalRoamingAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavailable";
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=", stack_data.pool);
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
+    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
     EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
       .WillOnce(Return(rsp));
     EXPECT_CALL(*_helper, send_response(rsp));
@@ -419,25 +430,25 @@ TEST_F(LocalRoamingAppServerTest, NoSIPURI)
   Message msg;
   msg._toscheme = "tel";
   msg._todomain = "";
-  msg._route = "Route: <sip:mobile-twinned@gemini.homedomain;twin-prefix=111>";
+
   LocalRoamingAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_msg* voip = parse_msg(msg.get_request());
   pjsip_msg* mobile = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavailable";
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
+    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
     EXPECT_CALL(*_helper, clone_request(req))
-      .WillOnce(Return(voip))
       .WillOnce(Return(mobile));
-    EXPECT_CALL(*_helper, get_pool(voip))
+    EXPECT_CALL(*_helper, get_pool(req))
       .WillOnce(Return(stack_data.pool));
-    EXPECT_CALL(*_helper, free_msg(voip));
-    EXPECT_CALL(*_helper, free_msg(mobile));
     EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
       .WillOnce(Return(rsp));
     EXPECT_CALL(*_helper, send_response(rsp));
+    EXPECT_CALL(*_helper, free_msg(req));
+    EXPECT_CALL(*_helper, free_msg(mobile));
   }
   as_tsx.on_initial_request(req);
 }
@@ -447,23 +458,24 @@ TEST_F(LocalRoamingAppServerTest, NoSIPURI)
 TEST_F(LocalRoamingAppServerTest, ForkMobileRejectsNot480)
 {
   Message msg;
-  msg._route = "Route: <sip:mobile-twinned@gemini.homedomain;twin-prefix=111>";
   LocalRoamingAppServerTsx as_tsx(_helper);
 
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
+
   pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_msg* voip = parse_msg(msg.get_request());
   pjsip_msg* mobile = parse_msg(msg.get_request());
   {
     // Use a sequence to ensure this happens in order.
     InSequence seq;
+    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
     EXPECT_CALL(*_helper, clone_request(req))
-      .WillOnce(Return(voip))
       .WillOnce(Return(mobile));
-    EXPECT_CALL(*_helper, get_pool(voip))
+    EXPECT_CALL(*_helper, get_pool(req))
       .WillOnce(Return(stack_data.pool));
     EXPECT_CALL(*_helper, get_pool(mobile))
       .WillOnce(Return(stack_data.pool));
-    EXPECT_CALL(*_helper, send_request(voip));
+    EXPECT_CALL(*_helper, send_request(req));
     EXPECT_CALL(*_helper, send_request(mobile))
       .WillOnce(Return(MOBILE_FORK_ID));
   }
