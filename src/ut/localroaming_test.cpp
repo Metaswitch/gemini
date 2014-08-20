@@ -363,7 +363,7 @@ TEST_F(LocalRoamingAppServerTest, NoRouteHeader)
   Message msg;
   LocalRoamingAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavaiable";
+  msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
@@ -376,19 +376,39 @@ TEST_F(LocalRoamingAppServerTest, NoRouteHeader)
 
 // Test with no twin-prefix on the gemini route header.
 // Call is rejected with a 480.
-TEST_F(LocalRoamingAppServerTest, NoTwinningPrefix)
+TEST_F(LocalRoamingAppServerTest, NoTwinPrefix)
 {
   Message msg;
   msg._route = "Route: <sip:mobile-twinned@gemini.homedomain>";
   LocalRoamingAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavaiable";
+  msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
     EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
       .WillOnce(Return(rsp));
     EXPECT_CALL(*_helper, send_response(rsp));
+  }
+  as_tsx.on_initial_request(req);
+}
+
+// Test with an empty twin-prefix on the gemini route header.
+// Call is rejected with a 480.
+TEST_F(LocalRoamingAppServerTest, EmptyTwinPrefix)
+{
+  Message msg;
+  msg._route = "Route: <sip:mobile-twinned@gemini.homedomain;twin-prefix=>";
+  LocalRoamingAppServerTsx as_tsx(_helper);
+  pjsip_msg* req = parse_msg(msg.get_request());
+  msg._status = "480 Temporarily Unavailable";
+  pjsip_msg* rsp = parse_msg(msg.get_response());
+  {
+    InSequence seq;
+    EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
+      .WillOnce(Return(rsp));
+    EXPECT_CALL(*_helper, send_response(rsp));
+    EXPECT_CALL(*_helper, free_msg(req));
   }
   as_tsx.on_initial_request(req);
 }
@@ -404,7 +424,7 @@ TEST_F(LocalRoamingAppServerTest, NoSIPURI)
   pjsip_msg* req = parse_msg(msg.get_request());
   pjsip_msg* voip = parse_msg(msg.get_request());
   pjsip_msg* mobile = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavaiable";
+  msg._status = "480 Temporarily Unavailable";
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;

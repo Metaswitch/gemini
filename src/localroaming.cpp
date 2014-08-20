@@ -101,6 +101,17 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     return;
   }
 
+  if (twin_prefix->value.slen == 0)
+  {
+    LOG_ERROR("Empty twin prefix - can't do local-roaming forking");
+    SAS::Event event(trail(), SASEvent::EMPTY_TWIN_PREFIX, 0);
+    SAS::report_event(event);
+    pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
+    send_response(rsp);
+    free_msg(req);
+    return;
+  }
+
   // We're about to fork the call. Create copies of the request which
   // we can manipulate.
   pjsip_msg* voip_req = clone_request(req);
