@@ -61,7 +61,6 @@ AppServerTsx* LocalRoamingAppServer::get_app_tsx(AppServerTsxHelper* helper,
 /// Constructor
 LocalRoamingAppServerTsx::LocalRoamingAppServerTsx(AppServerTsxHelper* helper) :
   AppServerTsx(helper),
-  _original_req(NULL),
   _mobile_fork_id(0),
   _attempted_mobile_voip_client(false)
 {
@@ -70,7 +69,6 @@ LocalRoamingAppServerTsx::LocalRoamingAppServerTsx(AppServerTsxHelper* helper) :
 /// Destructor
 LocalRoamingAppServerTsx::~LocalRoamingAppServerTsx()
 {
-  _original_req = NULL;
 }
 
 void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
@@ -81,16 +79,20 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
   LOG_DEBUG("LocalRoamingAS - process request %p, method %d", req, _method);
 
   // Check the URI in top route header has a "twin-prefix" parameter.
-  pjsip_route_hdr* route_hdr = (pjsip_route_hdr*)pjsip_msg_find_hdr(req, PJSIP_H_ROUTE, NULL);
-  if (route_hdr == NULL)
+  const pjsip_route_hdr* route_header = route_hdr();
+
+  if (route_header == NULL)
   {
     LOG_ERROR("Couldn't find gemini Route header");
     pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
     send_response(rsp);
+    free_msg(req);
     return;
   }
-  pjsip_sip_uri* route_hdr_uri = (pjsip_sip_uri*)route_hdr->name_addr.uri;
+
+  pjsip_sip_uri* route_hdr_uri = (pjsip_sip_uri*)route_header->name_addr.uri;
   pjsip_param* twin_prefix = pjsip_param_find(&route_hdr_uri->other_param, &STR_TWIN_PRE);
+
   if (twin_prefix == NULL)
   {
     LOG_ERROR("No twin prefix for local-roaming forking");
@@ -98,6 +100,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     SAS::report_event(event);
     pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
     send_response(rsp);
+    free_msg(req);
     return;
   }
 
@@ -114,7 +117,6 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
 
   // We're about to fork the call. Create copies of the request which
   // we can manipulate.
-  pjsip_msg* voip_req = clone_request(req);
   pjsip_msg* mobile_req = clone_request(req);
 
   // To prevent both the VoIP client and native mobile service both
@@ -123,7 +125,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
   if (_method == PJSIP_INVITE_METHOD)
   {
     LOG_DEBUG("Add Reject-Contact header to VoIP client request");
-    pj_pool_t* pool = get_pool(voip_req);
+    pj_pool_t* pool = get_pool(req);
 
     // Create a Reject-Contact header and add the "+sip.phone" parameter.
     pjsip_reject_contact_hdr* new_hdr = pjsip_reject_contact_hdr_create(pool);
@@ -131,12 +133,12 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
     phone->name = STR_PHONE;
     phone->value.slen = 0;
     pj_list_insert_after(&new_hdr->feature_set, phone);
-    pjsip_msg_add_hdr(voip_req, (pjsip_hdr*)new_hdr);
+    pjsip_msg_add_hdr(req, (pjsip_hdr*)new_hdr);
   }
 
   // Add the twin-prefix to the front of the URI to fork the second
   // request off to the twinned mobile device.
-  if (PJSIP_URI_SCHEME_IS_SIP(mobile_req->line.req.uri)) 
+  if (PJSIP_URI_SCHEME_IS_SIP(mobile_req->line.req.uri))
   {
     LOG_DEBUG("Creating forked request to twinned mobile device");
     sip_uri = (pjsip_sip_uri*)mobile_req->line.req.uri;
@@ -147,10 +149,10 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
   else
   {
     LOG_DEBUG("Not SIP URI, so cancel forking");
-    free_msg(voip_req);
-    free_msg(mobile_req);
     pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
     send_response(rsp);
+    free_msg(req);
+    free_msg(mobile_req);
     return;
   }
 
@@ -160,8 +162,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
   event.add_var_param(PJUtils::uri_to_string(PJSIP_URI_IN_REQ_URI, (pjsip_uri*)sip_uri));
   SAS::report_event(event);
 
-  _original_req = req;
-  send_request(voip_req);
+  send_request(req);
   _mobile_fork_id = send_request(mobile_req);
 }
 
@@ -183,7 +184,9 @@ void LocalRoamingAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
     SAS::report_event(event);
 
     // Create an Accept-Contact header and add the "+sip.phone" parameter.
-    pj_pool_t* pool = get_pool(_original_req);
+    pjsip_msg* req = original_request();
+    pj_pool_t* pool = get_pool(req);
+
     pjsip_accept_contact_hdr* new_hdr = pjsip_accept_contact_hdr_create(pool);
     new_hdr->explicit_match = true;
     new_hdr->required_match = true;
@@ -191,11 +194,10 @@ void LocalRoamingAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
     phone->name = STR_PHONE;
     phone->value.slen = 0;
     pj_list_insert_after(&new_hdr->feature_set, phone);
-    pjsip_msg_add_hdr(_original_req, (pjsip_hdr*)new_hdr);
+    pjsip_msg_add_hdr(req, (pjsip_hdr*)new_hdr);
 
+    send_request(req);
     free_msg(rsp);
-    send_request(_original_req);
-    _original_req = NULL;
 
     // Set the flag to indicate we've now tried reaching the VoIP client
     // on the mobile already so we don't come through here again. We
