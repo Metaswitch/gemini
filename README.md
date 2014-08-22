@@ -1,1 +1,11 @@
 Gemini
+======
+
+Gemini is an Application Server responsible for twinning VoIP clients with a mobile phone hosted on a native circuit-switched network.
+
+Project Clearwater is an open-source IMS core, developed by [Metaswitch Networks](http://www.metaswitch.com) and released under the [GNU GPLv3](http://www.projectclearwater.org/download/license/). You can find more information about it on [our website](http://www.projectclearwater.org/) or [our wiki](https://github.com/Metaswitch/clearwater-docs/wiki).
+
+Further info
+------------
+* [Install guide](https://github.com/Metaswitch/clearwater-docs/wiki/Installation-Instructions)
+* [Gemini overview](docs/gemini_overview.md)
