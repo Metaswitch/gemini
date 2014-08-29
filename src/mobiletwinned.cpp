@@ -1,9 +1,9 @@
 /**
- * @file localroaming.cpp Implementation of the local roaming AS which
+ * @file mobiletwinned.cpp Implementation of the mobile twinned AS which
  * is part of gemini.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -36,15 +36,15 @@
  */
 
 #include "log.h"
-#include "localroaming.h"
+#include "mobiletwinned.h"
 #include "pjutils.h"
 #include "gemini_constants.h"
 #include "custom_headers.h"
 #include "geminisasevent.h"
 
-/// Returns a new LocalRoamingAppServerTsx if the request is either a
+/// Returns a new MobileTwinnedAppServerTsx if the request is either a
 /// SUBSCRIBE or a INVITE.
-AppServerTsx* LocalRoamingAppServer::get_app_tsx(AppServerTsxHelper* helper,
+AppServerTsx* MobileTwinnedAppServer::get_app_tsx(AppServerTsxHelper* helper,
                                                  pjsip_msg* req)
 {
   if ((req->line.req.method.id != PJSIP_INVITE_METHOD) &&
@@ -54,12 +54,12 @@ AppServerTsx* LocalRoamingAppServer::get_app_tsx(AppServerTsxHelper* helper,
     return NULL;
   }
 
-  LocalRoamingAppServerTsx* local_roaming_tsx = new LocalRoamingAppServerTsx(helper);
-  return local_roaming_tsx;
+  MobileTwinnedAppServerTsx* mobile_twinned_tsx = new MobileTwinnedAppServerTsx(helper);
+  return mobile_twinned_tsx;
 }
 
 /// Constructor
-LocalRoamingAppServerTsx::LocalRoamingAppServerTsx(AppServerTsxHelper* helper) :
+MobileTwinnedAppServerTsx::MobileTwinnedAppServerTsx(AppServerTsxHelper* helper) :
   AppServerTsx(helper),
   _mobile_fork_id(0),
   _attempted_mobile_voip_client(false)
@@ -67,16 +67,16 @@ LocalRoamingAppServerTsx::LocalRoamingAppServerTsx(AppServerTsxHelper* helper) :
 }
 
 /// Destructor
-LocalRoamingAppServerTsx::~LocalRoamingAppServerTsx()
+MobileTwinnedAppServerTsx::~MobileTwinnedAppServerTsx()
 {
 }
 
-void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
+void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
 {
   _method = req->line.req.method.id;
   pjsip_sip_uri* sip_uri;
 
-  LOG_DEBUG("LocalRoamingAS - process request %p, method %d", req, _method);
+  LOG_DEBUG("MobileTwinnedAS - process request %p, method %d", req, _method);
 
   // Check the URI in top route header has a "twin-prefix" parameter.
   const pjsip_route_hdr* route_header = route_hdr();
@@ -95,7 +95,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
 
   if (twin_prefix == NULL)
   {
-    LOG_ERROR("No twin prefix for local-roaming forking");
+    LOG_ERROR("No twin prefix for mobile twinned forking");
     SAS::Event event(trail(), SASEvent::NO_TWIN_PREFIX, 0);
     SAS::report_event(event);
     pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
@@ -106,7 +106,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
 
   if (twin_prefix->value.slen == 0)
   {
-    LOG_ERROR("Empty twin prefix - can't do local-roaming forking");
+    LOG_ERROR("Empty twin prefix - can't do mobile twinned forking");
     SAS::Event event(trail(), SASEvent::EMPTY_TWIN_PREFIX, 0);
     SAS::report_event(event);
     pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
@@ -166,7 +166,7 @@ void LocalRoamingAppServerTsx::on_initial_request(pjsip_msg* req)
   _mobile_fork_id = send_request(mobile_req);
 }
 
-void LocalRoamingAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
+void MobileTwinnedAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
 {
   // In on_initial_request we add a Reject-Contact header to INVITEs
   // going to the VoIP client to stop the client and the native mobile

@@ -1,5 +1,5 @@
 /**
- * @file localroaming_test.cpp UT fixture for the local roaming AS which is
+ * @file mobiletwinned_test.cpp UT fixture for the mobile twinned AS which is
  * part of gemini.
  *
  * Project Clearwater - IMS in the Cloud
@@ -42,7 +42,7 @@
 
 #include "siptest.hpp"
 #include "mockappserver.hpp"
-#include "localroaming.h"
+#include "mobiletwinned.h"
 #include "stack.h"
 #include "pjutils.h"
 #include "custom_headers.h"
@@ -53,11 +53,11 @@ using namespace std;
 using testing::InSequence;
 using testing::Return;
 
-/// Fixture for LocalRoamingAppServerTest.
+/// Fixture for MobileTwinnedAppServerTest.
 ///
 /// This derives from SipTest to ensure PJSIP is set up correctly, but doesn't
 /// actually use most of its function (and doesn't register a module).
-class LocalRoamingAppServerTest : public SipTest
+class MobileTwinnedAppServerTest : public SipTest
 {
 public:
   static void SetUpTestCase()
@@ -72,11 +72,11 @@ public:
     SipTest::TearDownTestCase();
   }
 
-  LocalRoamingAppServerTest() : SipTest(NULL)
+  MobileTwinnedAppServerTest() : SipTest(NULL)
   {
   }
 
-  ~LocalRoamingAppServerTest()
+  ~MobileTwinnedAppServerTest()
   {
   }
 
@@ -104,13 +104,13 @@ public:
   static const int MOBILE_FORK_ID;
   static const int MOBILE_VOIP_FORK_ID;
 };
-MockAppServerTsxHelper* LocalRoamingAppServerTest::_helper = NULL;
+MockAppServerTsxHelper* MobileTwinnedAppServerTest::_helper = NULL;
 
-const int LocalRoamingAppServerTest::VOIP_FORK_ID = 11111;
-const int LocalRoamingAppServerTest::MOBILE_FORK_ID = 11112;
-const int LocalRoamingAppServerTest::MOBILE_VOIP_FORK_ID = 11113;
+const int MobileTwinnedAppServerTest::VOIP_FORK_ID = 11111;
+const int MobileTwinnedAppServerTest::MOBILE_FORK_ID = 11112;
+const int MobileTwinnedAppServerTest::MOBILE_VOIP_FORK_ID = 11113;
 
-namespace LocalRoamingAS
+namespace MobileTwinnedAS
 {
 class Message
 {
@@ -141,7 +141,7 @@ public:
 };
 }
 
-string LocalRoamingAS::Message::get_request()
+string MobileTwinnedAS::Message::get_request()
 {
   char buf[16384];
 
@@ -177,7 +177,7 @@ string LocalRoamingAS::Message::get_request()
   return ret;
 }
 
-string LocalRoamingAS::Message::get_response()
+string MobileTwinnedAS::Message::get_response()
 {
   char buf[16384];
 
@@ -214,7 +214,7 @@ string LocalRoamingAS::Message::get_response()
   return ret;
 }
 
-using LocalRoamingAS::Message;
+using MobileTwinnedAS::Message;
 
 /// Compares a pjsip_msg's request URI with a std::string.
 MATCHER_P(ReqUriEquals, uri, "")
@@ -224,25 +224,25 @@ MATCHER_P(ReqUriEquals, uri, "")
   return arg_uri == uri;
 }
 
-// Test creation and destruction of the LocalRoamingAppServer objects.
-TEST_F(LocalRoamingAppServerTest, CreateLocalRoamingAppServer)
+// Test creation and destruction of the MobileTwinnedAppServer objects.
+TEST_F(MobileTwinnedAppServerTest, CreateMobileTwinnedAppServer)
 {
-  // Create a LocalRoamingAppServer object
-  LocalRoamingAppServer* as = new LocalRoamingAppServer("gemini");
+  // Create a MobileTwinnedAppServer object
+  MobileTwinnedAppServer* as = new MobileTwinnedAppServer("gemini");
 
   // Test creating an app server transaction with an invalid method -
   // it shouldn't be created.
   Message msg;
   msg._method = "OPTIONS";
   pjsip_msg* req = parse_msg(msg.get_request());
-  LocalRoamingAppServerTsx* as_tsx = (LocalRoamingAppServerTsx*)as->get_app_tsx(_helper, req);
+  MobileTwinnedAppServerTsx* as_tsx = (MobileTwinnedAppServerTsx*)as->get_app_tsx(_helper, req);
   EXPECT_TRUE(as_tsx == NULL);
 
   // Try with a valid method (INVITE). This creates the application server
   // transaction.
   msg._method = "INVITE";
   req = parse_msg(msg.get_request());
-  as_tsx = (LocalRoamingAppServerTsx*)as->get_app_tsx(_helper, req);
+  as_tsx = (MobileTwinnedAppServerTsx*)as->get_app_tsx(_helper, req);
   EXPECT_TRUE(as_tsx != NULL);
   delete as_tsx; as_tsx = NULL;
 
@@ -250,7 +250,7 @@ TEST_F(LocalRoamingAppServerTest, CreateLocalRoamingAppServer)
   // transaction.
   msg._method = "SUBSCRIBE";
   req = parse_msg(msg.get_request());
-  as_tsx = (LocalRoamingAppServerTsx*)as->get_app_tsx(_helper, req);
+  as_tsx = (MobileTwinnedAppServerTsx*)as->get_app_tsx(_helper, req);
   EXPECT_TRUE(as_tsx != NULL);
   delete as_tsx; as_tsx = NULL;
 
@@ -260,10 +260,10 @@ TEST_F(LocalRoamingAppServerTest, CreateLocalRoamingAppServer)
 // Test a call that gets forked to the twinned devices. The mobile
 // client returns a 480, and the call gets forked again to the mobile
 // hosted VoIP clients. Call successfully reaches one of these.
-TEST_F(LocalRoamingAppServerTest, ForkMobileVoipClient)
+TEST_F(MobileTwinnedAppServerTest, ForkMobileVoipClient)
 {
   Message msg;
-  LocalRoamingAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx(_helper);
 
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
   hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
@@ -318,11 +318,11 @@ TEST_F(LocalRoamingAppServerTest, ForkMobileVoipClient)
 // Test a subscribe that is forked to twinned devices. One of the
 // devices returns a 480, but the second device successfully
 // receives the SUBSCRIBE.
-TEST_F(LocalRoamingAppServerTest, ForkSubscribe)
+TEST_F(MobileTwinnedAppServerTest, ForkSubscribe)
 {
   Message msg;
   msg._method = "SUBSCRIBE";
-  LocalRoamingAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx(_helper);
 
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
   hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
@@ -361,10 +361,10 @@ TEST_F(LocalRoamingAppServerTest, ForkSubscribe)
 }
 
 // Test with no gemini route header. Call is rejected with a 480.
-TEST_F(LocalRoamingAppServerTest, NoRouteHeader)
+TEST_F(MobileTwinnedAppServerTest, NoRouteHeader)
 {
   Message msg;
-  LocalRoamingAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx(_helper);
 
   const pjsip_route_hdr* hdr = NULL;
   pjsip_msg* req = parse_msg(msg.get_request());
@@ -383,10 +383,10 @@ TEST_F(LocalRoamingAppServerTest, NoRouteHeader)
 
 // Test with no twin-prefix on the gemini route header.
 // Call is rejected with a 480.
-TEST_F(LocalRoamingAppServerTest, NoTwinPrefix)
+TEST_F(MobileTwinnedAppServerTest, NoTwinPrefix)
 {
   Message msg;
-  LocalRoamingAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
   hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain", stack_data.pool);
@@ -405,10 +405,10 @@ TEST_F(LocalRoamingAppServerTest, NoTwinPrefix)
 
 // Test with an empty twin-prefix on the gemini route header.
 // Call is rejected with a 480.
-TEST_F(LocalRoamingAppServerTest, EmptyTwinPrefix)
+TEST_F(MobileTwinnedAppServerTest, EmptyTwinPrefix)
 {
   Message msg;
-  LocalRoamingAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
   hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=", stack_data.pool);
@@ -425,13 +425,13 @@ TEST_F(LocalRoamingAppServerTest, EmptyTwinPrefix)
 }
 
 // Test with a non SIP URI. Call is rejected with a 480.
-TEST_F(LocalRoamingAppServerTest, NoSIPURI)
+TEST_F(MobileTwinnedAppServerTest, NoSIPURI)
 {
   Message msg;
   msg._toscheme = "tel";
   msg._todomain = "";
 
-  LocalRoamingAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
   pjsip_msg* mobile = parse_msg(msg.get_request());
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
@@ -455,10 +455,10 @@ TEST_F(LocalRoamingAppServerTest, NoSIPURI)
 
 // Tests forking where the mobile device rejects the call, but
 // not with a 480.
-TEST_F(LocalRoamingAppServerTest, ForkMobileRejectsNot480)
+TEST_F(MobileTwinnedAppServerTest, ForkMobileRejectsNot480)
 {
   Message msg;
-  LocalRoamingAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx(_helper);
 
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
   hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);

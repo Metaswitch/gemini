@@ -1,9 +1,9 @@
 /**
- * @file localroaming.h Interface declaration for the local roaming AS which
+ * @file mobiletwinned.h Interface declaration for the mobile twinning AS which
  * is part of gemini.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -35,8 +35,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef LOCALROAMING_H__
-#define LOCALROAMING_H__
+#ifndef MOBILETWINNED_H__
+#define MOBILETWINNED_H__
 
 extern "C" {
 #include <pjsip.h>
@@ -47,21 +47,21 @@ extern "C" {
 
 #include "appserver.h"
 
-class LocalRoamingAppServer;
-class LocalRoamingAppServerTsx;
+class MobileTwinnedAppServer;
+class MobileTwinnedAppServerTsx;
 
-/// The LocalRoamingAppServer implements the gemini service, and subclasses
+/// The MobileTwinnedAppServer implements the gemini service, and subclasses
 /// the abstract AppServer class.
 ///
-/// Sprout calls the get_app_tsx method on LocalRoamingAppServer when
+/// Sprout calls the get_app_tsx method on MobileTwinnedAppServer when
 ///
 /// -  an IFC triggers with ServiceName containing a host name of the form
-///    gemini.<homedomain>;
-class LocalRoamingAppServer : public AppServer
+///    sip:mobile-twinned@<gemini domain>;
+class MobileTwinnedAppServer : public AppServer
 {
 public:
   /// Constructor
-  LocalRoamingAppServer(const std::string& _service_name) : AppServer(_service_name)
+  MobileTwinnedAppServer(const std::string& _service_name) : AppServer(_service_name)
   {
   }
 
@@ -77,19 +77,19 @@ public:
                                     pjsip_msg* req);
 };
 
-/// The LocalRoamingAppServerTsx class subclasses AppServerTsx and provides
+/// The MobileTwinnedAppServerTsx class subclasses AppServerTsx and provides
 /// application-server-specific processing of a single transaction.  It
 /// encapsulates a ServiceTsx, which it calls through to to perform the
 /// underlying service-related processing.
 ///
-class LocalRoamingAppServerTsx : public AppServerTsx
+class MobileTwinnedAppServerTsx : public AppServerTsx
 {
 public:
   /// Constructor.
-  LocalRoamingAppServerTsx(AppServerTsxHelper* helper);
+  MobileTwinnedAppServerTsx(AppServerTsxHelper* helper);
 
   /// Virtual destructor.
-  virtual ~LocalRoamingAppServerTsx();
+  virtual ~MobileTwinnedAppServerTsx();
 
   /// Called for an initial request (dialog-initiating or out-of-dialog) with
   /// the original received request for the transaction.
