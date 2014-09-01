@@ -9,9 +9,7 @@ It is implemented as a transaction-stateful but otherwise entirely-stateless AS,
 ## Building Gemini
 
 Gemini is integrated into the Application Server framework provided by Sprout,
-and can be run on the Sprout nodes or as a standalone node.
-
-It is integrated with Sprout, and is built as part of the [Sprout build](https://github.com/Metaswitch/sprout/blob/dev/docs/Development.md).
+and can be run on the Sprout nodes or as a standalone node. It is built as part of the [Sprout build](https://github.com/Metaswitch/sprout/blob/dev/docs/Development.md).
 
 ## Gemini Configuration
 
