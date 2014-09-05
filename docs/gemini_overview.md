@@ -14,7 +14,7 @@ and can be run on the Sprout nodes or as a standalone node. It is built as part 
 ## Gemini Configuration
 
 Gemini is configured in the subscriber's IFCs, and is registered as a general terminating AS for INVITE and SUBSCRIBE requests.
-It has a mandatory "twin-prefix" parameter - this specifies the prefix to apply to the user part of URIs to route to the mobile twin.
+It has a mandatory "twin-prefix" parameter - this specifies the prefix to apply to the user part of URIs to route to the mobile twin. The application server name should be set to `mobile-twinned` @ the cluster of nodes running the Gemini application servers (which will be the Sprout cluster, or a standalone application server cluster). 
 
 An example IFC is:
 
@@ -41,7 +41,7 @@ An example IFC is:
 </InitialFilterCriteria>
 ```
 
-This is triggered if the request is a terminating INVITE for a registered subscriber. The application server is gemini.cw-ngv.com, and the prefix that will be applied to the callee's URI to generate the mobile number is 123.
+This is triggered if the request is a terminating INVITE for a registered subscriber. The application server is gemini.cw-ngv.com, and the prefix that will be applied to the callee's URI to generate the mobile number is 123. 
 
 To enable Gemini on a Sprout node or a standalone server, set gemini_enabled='Y' in /etc/clearwater/config on each node, and restart the process.
 
