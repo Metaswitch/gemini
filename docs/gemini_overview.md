@@ -35,7 +35,7 @@ An example IFC is:
     <Extension></Extension>
   </SPT>
   </TriggerPoint>
-  <ApplicationServer><ServerName>sip:gemini.cw-ngv.com;twin-prefix=123</ServerName>
+  <ApplicationServer><ServerName>sip:mobile-twinned@gemini.cw-ngv.com;twin-prefix=123</ServerName>
     <DefaultHandling>0</DefaultHandling>
   </ApplicationServer>
 </InitialFilterCriteria>
