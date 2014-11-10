@@ -45,10 +45,13 @@ namespace SASEvent
   // Gemini events.
   //----------------------------------------------------------------------------
   const int FORKING_ON_REQ = GEMINI_BASE + 0x000000;
-  const int NO_TWIN_PREFIX = GEMINI_BASE + 0x000001;
-  const int EMPTY_TWIN_PREFIX = GEMINI_BASE + 0x000002;
 
   const int FORKING_ON_480_RSP = GEMINI_BASE + 0x000010;
+  const int NO_RETRY_ON_480_RSP = GEMINI_BASE + 0x000011;
+
+  const int CALL_TO_VOIP_CLIENT = GEMINI_BASE + 0x000020;
+  const int CALL_TO_NATIVE_DEVICE = GEMINI_BASE + 0x000021;
+
 } //namespace SASEvent
 
 #endif
