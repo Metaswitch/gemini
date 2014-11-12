@@ -116,17 +116,33 @@ public:
   virtual void on_response(pjsip_msg* rsp, int fork_id);
 
 private:
-  /// The method.
-  pjsip_method_e _method;
+  /// Adds a twin prefix to a request URI
+  ///
+  /// @param req_uri        - <in/out> The Request URI to manipulate
+  /// @param twin_prefix    - The prefix to add (can be empty)
+  /// @param pool           - The pool to use
+  void add_twin_prefix(pjsip_uri* req_uri,
+                       pjsip_param* twin_prefix,
+                       pj_pool_t* pool);
+
+  /// Returns whether any Accept-Contact headers in the request contain
+  /// the feature 'g.3gpp.ics'
+  ///
+  /// @param req            - The request to check
+  /// @returns whether there's the matching feature
+  bool accept_contact_header_has_3gpp_ics(pjsip_msg* req);
 
   /// Fork ID for the INVITE that has been sent on to the mobile device.
   int _mobile_fork_id;
 
-  /// Whether or not we’ve already tried to fork an INVITE to the
+  /// Whether or not we've already tried to fork an INVITE to the
   /// VoIP client on the mobile device, which we try to do after
   /// the native mobile client returns a 480 suggesting it's not
   /// registered.
   bool _attempted_mobile_voip_client;
+
+  /// Whether the request should only be sent to a single target
+  bool _single_target;
 };
 
 #endif

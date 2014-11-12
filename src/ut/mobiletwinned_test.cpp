@@ -80,21 +80,46 @@ public:
   {
   }
 
+  // Test a call that gets forked to a VoIP client and the native device
+  void test_with_two_forks(std::string method,
+                           std::string status,
+                           bool retry,
+                           std::string extra = "");
+
+  // Test a call that gets sent to a single VoIP client
+  void test_with_gr(std::string method,
+                    std::string status);
+
+  // Test a call that gets sent to the native device
+  void test_with_g_3gpp_ics(std::string method,
+                            std::string status,
+                            std::string twin_prefix = "111");
+
   // Check the list of expected_params are found in the list of actual_params.
-  bool check_params(pjsip_param* actual_params, std::unordered_map<std::string, std::string>& expected_params)
+  // The actual parameters are a vector containing the list of pjsip_params from each header
+  bool check_params_multiple_headers(std::vector<pjsip_param*> actual_params, std::unordered_map<std::string, std::string>& expected_params)
   {
-    for (std::unordered_map<std::string, std::string>::const_iterator it = expected_params.begin();
-         it != expected_params.end();
-         ++it)
+    for (std::unordered_map<std::string, std::string>::const_iterator exp = expected_params.begin();
+         exp != expected_params.end();
+         ++exp)
     {
-      pj_str_t header_name = pj_str((char*)it->first.c_str());
-      pjsip_param* param = pjsip_param_find(actual_params, &header_name);
-      if ((param == NULL) ||
-          (PJUtils::pj_str_to_string(&param->value) != it->second))
+      bool found_parameter = false;
+
+      for (std::vector<pjsip_param*>::iterator act = actual_params.begin();
+           ((act != actual_params.end()) && (!found_parameter));
+           ++act)
+      {
+        pj_str_t parameter_name = pj_str((char*)exp->first.c_str());
+        pjsip_param* param = pjsip_param_find(*act, &parameter_name);
+        found_parameter = ((param != NULL) && (PJUtils::pj_str_to_string(&param->value) == exp->second));
+      }
+
+      if (!found_parameter)
       {
         return false;
       }
     }
+
     return true;
   }
 
@@ -123,6 +148,8 @@ public:
   string _to;
   string _todomain;
   string _route;
+  string _parameters;
+  string _extra;
 
   Message() :
     _method("INVITE"),
@@ -132,7 +159,9 @@ public:
     _fromdomain("homedomain"),
     _to("6505551234"),
     _todomain("homedomain"),
-    _route("")
+    _route(""),
+    _parameters(""),
+    _extra("")
   {
   }
 
@@ -147,9 +176,15 @@ string MobileTwinnedAS::Message::get_request()
 
   // The remote target.
   string target = string(_toscheme).append(":").append(_to);
+
   if (!_todomain.empty())
   {
     target.append("@").append(_todomain);
+  }
+
+  if (!_parameters.empty())
+  {
+    target.append(_parameters);
   }
 
   int n = snprintf(buf, sizeof(buf),
@@ -158,6 +193,7 @@ string MobileTwinnedAS::Message::get_request()
                    "From: <sip:%2$s@%3$s>;tag=10.114.61.213+1+8c8b232a+5fb751cf\r\n"
                    "To: <%4$s>\r\n"
                    "%5$s"
+                   "%6$s"
                    "Max-Forwards: 68\r\n"
                    "Call-ID: 0gQAAC8WAAACBAAALxYAAAL8P3UbW8l4mT8YBkKGRKc5SOHaJ1gMRqsUOO4ohntC@10.114.61.213\r\n"
                    "CSeq: 16567 %1$s\r\n"
@@ -168,7 +204,8 @@ string MobileTwinnedAS::Message::get_request()
                    /*  2 */ _from.c_str(),
                    /*  3 */ _fromdomain.c_str(),
                    /*  4 */ target.c_str(),
-                   /*  5 */ _route.empty() ? "" : string(_route).append("\r\n").c_str()
+                   /*  5 */ _route.empty() ? "" : string(_route).append("\r\n").c_str(),
+                   /*  6 */ _extra.empty() ? "" : string(_extra).append("\r\n").c_str()
     );
 
   EXPECT_LT(n, (int)sizeof(buf));
@@ -224,6 +261,198 @@ MATCHER_P(ReqUriEquals, uri, "")
   return arg_uri == uri;
 }
 
+void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
+                                                     std::string status,
+                                                     bool retry,
+                                                     std::string extra)
+{
+  Message msg;
+  msg._method = method;
+  msg._extra = extra;
+  MobileTwinnedAppServerTsx as_tsx(_helper);
+
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
+  pjsip_msg* req = parse_msg(msg.get_request());
+  pjsip_msg* mobile = parse_msg(msg.get_request());
+  {
+    // Use a sequence to ensure this happens in order.
+    InSequence seq;
+    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
+    EXPECT_CALL(*_helper, clone_request(req))
+      .WillOnce(Return(mobile));
+    EXPECT_CALL(*_helper, get_pool(req))
+      .WillOnce(Return(stack_data.pool));
+    EXPECT_CALL(*_helper, get_pool(mobile))
+      .WillOnce(Return(stack_data.pool));
+    EXPECT_CALL(*_helper, send_request(req));
+    EXPECT_CALL(*_helper, send_request(mobile))
+      .WillOnce(Return(MOBILE_FORK_ID));
+  }
+  as_tsx.on_initial_request(req);
+
+  EXPECT_THAT(req, ReqUriEquals("sip:6505551234@homedomain"));
+
+  // Extract all the Reject-Contact headers.
+  std::vector<pjsip_param*> reject_params;
+  pjsip_reject_contact_hdr* reject_header =
+   (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(req,
+                                                         &STR_REJECT_CONTACT,
+                                                         NULL);
+  while (reject_header != NULL)
+  {
+    reject_params.push_back(&reject_header->feature_set);
+    reject_header = (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(req,
+                                                                          &STR_REJECT_CONTACT,
+                                                                          reject_header->next);
+  }
+
+  std::unordered_map<std::string, std::string> expected_reject_params;
+  expected_reject_params["+sip.phone"] = "";
+  EXPECT_TRUE(check_params_multiple_headers(reject_params, expected_reject_params));
+  EXPECT_THAT(mobile, ReqUriEquals("sip:1116505551234@homedomain"));
+
+  std::vector<pjsip_param*> accept_params;
+
+  // Extract all the Accept-Contact headers.
+  pjsip_accept_contact_hdr* accept_header =
+   (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(mobile,
+                                                         &STR_ACCEPT_CONTACT,
+                                                         NULL);
+  while (accept_header != NULL)
+  {
+    accept_params.push_back(&accept_header->feature_set);
+    accept_header = (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(mobile,
+                                                                          &STR_ACCEPT_CONTACT,
+                                                                          accept_header->next);
+  }
+
+  std::unordered_map<std::string, std::string> expected_accept_params;
+  expected_accept_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "";
+  EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_accept_params));
+
+  msg._status = status;
+  pjsip_msg* rsp = parse_msg(msg.get_response());
+
+  if (retry)
+  {
+    {
+      // Use a sequence to ensure this happens in order.
+      InSequence seq;
+      EXPECT_CALL(*_helper, original_request())
+        .WillOnce(Return(req));
+      EXPECT_CALL(*_helper, get_pool(req))
+        .WillOnce(Return(stack_data.pool));
+      EXPECT_CALL(*_helper, send_request(req)).
+       WillOnce(Return(MOBILE_VOIP_FORK_ID));
+      EXPECT_CALL(*_helper, free_msg(rsp));
+    }
+    as_tsx.on_response(rsp, MOBILE_FORK_ID);
+
+    EXPECT_THAT(req, ReqUriEquals("sip:6505551234@homedomain"));
+
+    // Extract all the Accept-Contact headers.
+    accept_params.clear();
+    accept_header =
+     (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(req,
+                                                           &STR_ACCEPT_CONTACT,
+                                                           NULL);
+    while (accept_header != NULL)
+    {
+      accept_params.push_back(&accept_header->feature_set);
+      accept_header = (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(req,
+                                                                            &STR_ACCEPT_CONTACT,
+                                                                            accept_header->next);
+    }
+
+    EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_reject_params));
+
+    msg._status = "200 OK";
+    rsp = parse_msg(msg.get_response());
+    EXPECT_CALL(*_helper, send_response(rsp));
+    as_tsx.on_response(rsp, MOBILE_VOIP_FORK_ID);
+  }
+  else
+  {
+    EXPECT_CALL(*_helper, send_response(rsp));
+    as_tsx.on_response(rsp, MOBILE_FORK_ID);
+    EXPECT_CALL(*_helper, send_response(rsp));
+    as_tsx.on_response(rsp, VOIP_FORK_ID);
+  }
+}
+
+void MobileTwinnedAppServerTest::test_with_gr(std::string method,
+                                              std::string status)
+{
+  Message msg;
+  msg._method = method;
+  msg._parameters = ";gr=hello";
+  MobileTwinnedAppServerTsx as_tsx(_helper);
+
+  pjsip_msg* req = parse_msg(msg.get_request());
+  {
+    // Use a sequence to ensure this happens in order.
+    InSequence seq;
+    EXPECT_CALL(*_helper, send_request(req));
+  }
+  as_tsx.on_initial_request(req);
+
+  msg._status = status;
+  pjsip_msg* rsp = parse_msg(msg.get_response());
+  EXPECT_CALL(*_helper, send_response(rsp));
+  as_tsx.on_response(rsp, VOIP_FORK_ID);
+}
+
+void MobileTwinnedAppServerTest::test_with_g_3gpp_ics(std::string method,
+                                                      std::string status,
+                                                      std::string twin_prefix)
+{
+  Message msg;
+  msg._method = method;
+  msg._extra = "Accept-Contact: *;audio\r\nAccept-Contact: *;g.3gpp.ics";
+  MobileTwinnedAppServerTsx as_tsx(_helper);
+
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=" + twin_prefix, stack_data.pool);
+  pjsip_msg* req = parse_msg(msg.get_request());
+  {
+    // Use a sequence to ensure this happens in order.
+    InSequence seq;
+    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
+    EXPECT_CALL(*_helper, get_pool(req))
+       .WillOnce(Return(stack_data.pool));
+    EXPECT_CALL(*_helper, send_request(req))
+      .WillOnce(Return(MOBILE_FORK_ID));
+  }
+  as_tsx.on_initial_request(req);
+
+  EXPECT_THAT(req, ReqUriEquals("sip:" + twin_prefix + "6505551234@homedomain"));
+  std::vector<pjsip_param*> accept_params;
+
+  // Extract all the Accept-Contact headers.
+  pjsip_accept_contact_hdr* accept_header =
+   (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(req,
+                                                         &STR_ACCEPT_CONTACT,
+                                                         NULL);
+  while (accept_header != NULL)
+  {
+    accept_params.push_back(&accept_header->feature_set);
+    accept_header = (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(req,
+                                                                          &STR_ACCEPT_CONTACT,
+                                                                          accept_header->next);
+  }
+
+  std::unordered_map<std::string, std::string> expected_accept_params;
+  expected_accept_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "";
+  expected_accept_params["audio"] = "";
+  EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_accept_params));
+
+  msg._status = status;
+  pjsip_msg* rsp = parse_msg(msg.get_response());
+  EXPECT_CALL(*_helper, send_response(rsp));
+  as_tsx.on_response(rsp, MOBILE_FORK_ID);
+}
+
 // Test creation and destruction of the MobileTwinnedAppServer objects.
 TEST_F(MobileTwinnedAppServerTest, CreateMobileTwinnedAppServer)
 {
@@ -262,166 +491,104 @@ TEST_F(MobileTwinnedAppServerTest, CreateMobileTwinnedAppServer)
 // hosted VoIP clients. Call successfully reaches one of these.
 TEST_F(MobileTwinnedAppServerTest, ForkMobileVoipClient)
 {
-  Message msg;
-  MobileTwinnedAppServerTsx as_tsx(_helper);
-
-  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
-  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
-  pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_msg* mobile = parse_msg(msg.get_request());
-  {
-    // Use a sequence to ensure this happens in order.
-    InSequence seq;
-    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
-    EXPECT_CALL(*_helper, clone_request(req))
-      .WillOnce(Return(mobile));
-    EXPECT_CALL(*_helper, get_pool(req))
-      .WillOnce(Return(stack_data.pool));
-    EXPECT_CALL(*_helper, get_pool(mobile))
-      .WillOnce(Return(stack_data.pool));
-    EXPECT_CALL(*_helper, send_request(req));
-    EXPECT_CALL(*_helper, send_request(mobile))
-      .WillOnce(Return(MOBILE_FORK_ID));
-  }
-  as_tsx.on_initial_request(req);
-
-  EXPECT_THAT(req, ReqUriEquals("sip:6505551234@homedomain"));
-  pjsip_reject_contact_hdr* reject_contact_hdr =
-    (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(req, &STR_REJECT_CONTACT, NULL);
-  std::unordered_map<std::string, std::string> expected_params;
-  expected_params[PJUtils::pj_str_to_string(&STR_PHONE)] = "";
-  EXPECT_TRUE(check_params(&reject_contact_hdr->feature_set, expected_params));
-  EXPECT_THAT(mobile, ReqUriEquals("sip:1116505551234@homedomain"));
-
-  msg._status = "480 Temporarily Unavailable";
-  pjsip_msg* rsp = parse_msg(msg.get_response());
-  EXPECT_CALL(*_helper, original_request())
-    .WillOnce(Return(req));
-  EXPECT_CALL(*_helper, get_pool(req))
-    .WillOnce(Return(stack_data.pool));
-  EXPECT_CALL(*_helper, free_msg(rsp));
-  EXPECT_CALL(*_helper, send_request(req)).
-    WillOnce(Return(MOBILE_VOIP_FORK_ID));
-  as_tsx.on_response(rsp, MOBILE_FORK_ID);
-
-  EXPECT_THAT(req, ReqUriEquals("sip:6505551234@homedomain"));
-  pjsip_accept_contact_hdr* accept_contact_hdr =
-    (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(req, &STR_ACCEPT_CONTACT, NULL);
-  EXPECT_TRUE(check_params(&accept_contact_hdr->feature_set, expected_params));
-
-  msg._status = "200 OK";
-  rsp = parse_msg(msg.get_response());
-  EXPECT_CALL(*_helper, send_response(rsp));
-  as_tsx.on_response(rsp, MOBILE_VOIP_FORK_ID);
+  test_with_two_forks("INVITE", "480 Temporarily Unavailable", true);
 }
 
-// Test a subscribe that is forked to twinned devices. One of the
-// devices returns a 480, but the second device successfully
-// receives the SUBSCRIBE.
-TEST_F(MobileTwinnedAppServerTest, ForkSubscribe)
+// Tests forking where the mobile device rejects the call, but
+// not with a 480.
+TEST_F(MobileTwinnedAppServerTest, ForkMobileRejectsNot480)
 {
-  Message msg;
-  msg._method = "SUBSCRIBE";
-  MobileTwinnedAppServerTsx as_tsx(_helper);
-
-  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
-  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
-  pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_msg* mobile = parse_msg(msg.get_request());
-  {
-    // Use a sequence to ensure this happens in order.
-    InSequence seq;
-    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
-    EXPECT_CALL(*_helper, clone_request(req))
-      .WillOnce(Return(mobile));
-    EXPECT_CALL(*_helper, get_pool(mobile))
-      .WillOnce(Return(stack_data.pool));
-    EXPECT_CALL(*_helper, send_request(req));
-    EXPECT_CALL(*_helper, send_request(mobile))
-      .WillOnce(Return(MOBILE_FORK_ID));
-  }
-  as_tsx.on_initial_request(req);
-
-  EXPECT_THAT(req, ReqUriEquals("sip:6505551234@homedomain"));
-  pjsip_reject_contact_hdr* reject_contact_hdr =
-    (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(req, &STR_REJECT_CONTACT, NULL);
-  EXPECT_TRUE(reject_contact_hdr == NULL);
-  EXPECT_THAT(mobile, ReqUriEquals("sip:1116505551234@homedomain"));
-
-  msg._status = "480 Temporarily Unavailable";
-  pjsip_msg* rsp = parse_msg(msg.get_response());
-
-  EXPECT_CALL(*_helper, send_response(rsp));
-  as_tsx.on_response(rsp, MOBILE_FORK_ID);
-
-  msg._status = "200 OK";
-  rsp = parse_msg(msg.get_response());
-  EXPECT_CALL(*_helper, send_response(rsp));
-  as_tsx.on_response(rsp, VOIP_FORK_ID);
+  test_with_two_forks("INVITE", "486 Busy Here", false);
 }
 
-// Test with no gemini route header. Call is rejected with a 480.
-TEST_F(MobileTwinnedAppServerTest, NoRouteHeader)
+// Tests forking where the devices accept the call.
+TEST_F(MobileTwinnedAppServerTest, ForkInviteSuccess)
 {
-  Message msg;
-  MobileTwinnedAppServerTsx as_tsx(_helper);
-
-  const pjsip_route_hdr* hdr = NULL;
-  pjsip_msg* req = parse_msg(msg.get_request());
-  msg._status = "480 Temporarily Unavailable";
-  pjsip_msg* rsp = parse_msg(msg.get_response());
-  {
-    InSequence seq;
-    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
-    EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
-      .WillOnce(Return(rsp));
-    EXPECT_CALL(*_helper, send_response(rsp));
-    EXPECT_CALL(*_helper, free_msg(req));
-  }
-  as_tsx.on_initial_request(req);
+  test_with_two_forks("INVITE", "200 OK", false);
 }
 
-// Test with no twin-prefix on the gemini route header.
-// Call is rejected with a 480.
-TEST_F(MobileTwinnedAppServerTest, NoTwinPrefix)
+// Test a subscribe that is forked to twinned devices. The mobile
+// device returns a 480 but this doesn't trigger a retry
+TEST_F(MobileTwinnedAppServerTest, ForkSubscribeMobile480)
 {
-  Message msg;
-  MobileTwinnedAppServerTsx as_tsx(_helper);
-  pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
-  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain", stack_data.pool);
-
-  pjsip_msg* rsp = parse_msg(msg.get_response());
-  {
-    InSequence seq;
-    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
-    EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
-      .WillOnce(Return(rsp));
-    EXPECT_CALL(*_helper, send_response(rsp));
-    EXPECT_CALL(*_helper, free_msg(req));
-  }
-  as_tsx.on_initial_request(req);
+  test_with_two_forks("SUBSCRIBE", "480 Temporarily Unavailable", false);
 }
 
-// Test with an empty twin-prefix on the gemini route header.
-// Call is rejected with a 480.
-TEST_F(MobileTwinnedAppServerTest, EmptyTwinPrefix)
+// Test forking where the devices accept the subscribe.
+TEST_F(MobileTwinnedAppServerTest, ForkSubscribeSuccess)
 {
-  Message msg;
-  MobileTwinnedAppServerTsx as_tsx(_helper);
-  pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
-  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=", stack_data.pool);
-  pjsip_msg* rsp = parse_msg(msg.get_response());
-  {
-    InSequence seq;
-    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
-    EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
-      .WillOnce(Return(rsp));
-    EXPECT_CALL(*_helper, send_response(rsp));
-    EXPECT_CALL(*_helper, free_msg(req));
-  }
-  as_tsx.on_initial_request(req);
+  test_with_two_forks("SUBSCRIBE", "200 OK", false);
+}
+
+// Test a subscribe where the devices reject the subscribe
+TEST_F(MobileTwinnedAppServerTest, ForkSubscribeBothReject)
+{
+  test_with_two_forks("SUBSCRIBE", "486 Busy Here", false);
+}
+
+// Test an INVITE that has Accept-Contact headers that don't include
+// g.3gpp.ics
+TEST_F(MobileTwinnedAppServerTest, ForkInviteWithExtraAcceptContact)
+{
+  test_with_two_forks("INVITE", "200 OK", false, "Accept-Contact: *;audio\r\nAccept-Contact: *;extra;extra2");
+}
+
+// Tests where a successful INVITE is targeted at a specific client
+TEST_F(MobileTwinnedAppServerTest, SuccessfulInviteWithGR)
+{
+  test_with_gr("INVITE", "200 OK");
+}
+
+// Tests where a unsuccessful INVITE is targeted at a specific client.
+// The call isn't retried.
+TEST_F(MobileTwinnedAppServerTest, UnsuccessfulInviteWithGR)
+{
+  test_with_gr("INVITE", "480 Temporarily Unavailable");
+}
+
+// Tests where a successful SUBSCRIBE is targeted at a specific client
+TEST_F(MobileTwinnedAppServerTest, SuccessfulSubscribeWithGR)
+{
+  test_with_gr("SUBSCRIBE", "200 OK");
+}
+
+// Tests where a unsuccessful SUBSCRIBE is targeted at a specific client.
+// The call isn't retried.
+TEST_F(MobileTwinnedAppServerTest, UnsuccessfulSubscribeWithGR)
+{
+  test_with_gr("SUBSCRIBE", "480 Temporarily Unavailable");
+}
+
+// Tests where a successful INVITE is targeted at the native device
+TEST_F(MobileTwinnedAppServerTest, SuccessfulInviteWithAcceptContact)
+{
+  test_with_g_3gpp_ics("INVITE", "200 OK");
+}
+
+// Tests where a unsuccessful INVITE is targeted at the native device.
+// The call isn't retried.
+TEST_F(MobileTwinnedAppServerTest, UnsuccessfulInviteWithAcceptContact)
+{
+  test_with_g_3gpp_ics("INVITE", "480 Temporarily Unavailable");
+}
+
+// Tests where a successful SUBSCRIBE is targeted at the native device
+TEST_F(MobileTwinnedAppServerTest, SuccessfulSubscribeWithAcceptContact)
+{
+  test_with_g_3gpp_ics("SUBSCRIBE", "200 OK");
+}
+
+// Tests where a unsuccessful SUBSCRIBE is targeted at the native device.
+// The call isn't retried.
+TEST_F(MobileTwinnedAppServerTest, UnsuccessfulSubscribeWithAcceptContact)
+{
+  test_with_g_3gpp_ics("SUBSCRIBE", "480 Temporarily Unavailable");
+}
+
+// Tests where a successful INVITE is targeted at the native device with no twin-prefix
+TEST_F(MobileTwinnedAppServerTest, SuccessfulInviteWithAcceptContactNoTwinPrefix)
+{
+  test_with_g_3gpp_ics("INVITE", "200 OK", "");
 }
 
 // Test with a non SIP URI. Call is rejected with a 480.
@@ -433,61 +600,13 @@ TEST_F(MobileTwinnedAppServerTest, NoSIPURI)
 
   MobileTwinnedAppServerTsx as_tsx(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_msg* mobile = parse_msg(msg.get_request());
-  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
-  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {
     InSequence seq;
-    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
-    EXPECT_CALL(*_helper, clone_request(req))
-      .WillOnce(Return(mobile));
-    EXPECT_CALL(*_helper, get_pool(req))
-      .WillOnce(Return(stack_data.pool));
     EXPECT_CALL(*_helper, create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE, ""))
       .WillOnce(Return(rsp));
     EXPECT_CALL(*_helper, send_response(rsp));
     EXPECT_CALL(*_helper, free_msg(req));
-    EXPECT_CALL(*_helper, free_msg(mobile));
   }
   as_tsx.on_initial_request(req);
-}
-
-// Tests forking where the mobile device rejects the call, but
-// not with a 480.
-TEST_F(MobileTwinnedAppServerTest, ForkMobileRejectsNot480)
-{
-  Message msg;
-  MobileTwinnedAppServerTsx as_tsx(_helper);
-
-  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
-  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
-
-  pjsip_msg* req = parse_msg(msg.get_request());
-  pjsip_msg* mobile = parse_msg(msg.get_request());
-  {
-    // Use a sequence to ensure this happens in order.
-    InSequence seq;
-    EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
-    EXPECT_CALL(*_helper, clone_request(req))
-      .WillOnce(Return(mobile));
-    EXPECT_CALL(*_helper, get_pool(req))
-      .WillOnce(Return(stack_data.pool));
-    EXPECT_CALL(*_helper, get_pool(mobile))
-      .WillOnce(Return(stack_data.pool));
-    EXPECT_CALL(*_helper, send_request(req));
-    EXPECT_CALL(*_helper, send_request(mobile))
-      .WillOnce(Return(MOBILE_FORK_ID));
-  }
-  as_tsx.on_initial_request(req);
-
-  msg._status = "408 Request Timeout";
-  pjsip_msg* rsp = parse_msg(msg.get_response());
-  EXPECT_CALL(*_helper, send_response(rsp));
-  as_tsx.on_response(rsp, MOBILE_FORK_ID);
-
-  msg._status = "200 OK";
-  rsp = parse_msg(msg.get_response());
-  EXPECT_CALL(*_helper, send_response(rsp));
-  as_tsx.on_response(rsp, VOIP_FORK_ID);
 }
