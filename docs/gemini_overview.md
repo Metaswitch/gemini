@@ -43,7 +43,7 @@ An example IFC is:
 
 This is triggered if the request is a terminating INVITE for a registered subscriber. The application server is gemini.cw-ngv.com, and the prefix that will be applied to the callee's URI to generate the mobile number is 123. 
 
-To enable Gemini on a Sprout node or a standalone server, set gemini_enabled='Y' in /etc/clearwater/config on each node, and restart the process.
+To enable Gemini on a Sprout node or a standalone server, simply install the Gemini plugin and restart the sprout process.
 
 ## Scalability
 
