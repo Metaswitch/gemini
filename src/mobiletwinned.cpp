@@ -116,7 +116,7 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
   // If the request has a Accept-Contact header that contains g.3gpp.ics
   // then this is a request targeted at the native device. Add the twin
   // prefix to the request URI and set the single_target flag
-  if (accept_header_has_3gpp_ics(req))
+  if (accept_contact_header_has_3gpp_ics(req))
   {
     LOG_DEBUG("Call is targeted at the native device");
 
@@ -131,23 +131,25 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
     return;
   }
 
-  // Otherwise, fork the call. Create a copy of the request
-  // we can manipulate.
+  // Otherwise, fork the call. Create a copy of the request we can manipulate
+  // (and change the name of the existing request so we don't accidentally
+  // use it).
   pjsip_msg* mobile_req = clone_request(req);
+  pjsip_msg* voip_req = req; req = NULL;
 
   // Set up the fork to the VoIP client.
   // To prevent both the VoIP client and native mobile service both
   // ringing on the same device, add a Reject-Contact header containing
   // +sip.phone to the request headed for the VoIP client.
   LOG_DEBUG("Creating forked request to VoIP client");
-  pj_pool_t* voip_pool = get_pool(req);
+  pj_pool_t* voip_pool = get_pool(voip_req);
   pjsip_reject_contact_hdr* reject_hdr =
                                    pjsip_reject_contact_hdr_create(voip_pool);
   pjsip_param* phone = PJ_POOL_ALLOC_T(voip_pool, pjsip_param);
   phone->name = STR_PHONE;
   phone->value.slen = 0;
   pj_list_insert_after(&reject_hdr->feature_set, phone);
-  pjsip_msg_add_hdr(req, (pjsip_hdr*)reject_hdr);
+  pjsip_msg_add_hdr(voip_req, (pjsip_hdr*)reject_hdr);
 
   // Set up the fork to the native device.
   // Append the twin prefix (if set) to the request URI, and add an
@@ -170,7 +172,7 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
                                              mobile_req->line.req.uri));
   SAS::report_event(event);
 
-  send_request(req);
+  send_request(voip_req);
   _mobile_fork_id = send_request(mobile_req);
 }
 
@@ -241,23 +243,23 @@ void MobileTwinnedAppServerTsx::add_twin_prefix(pjsip_uri* req_uri,
   }
 }
 
-bool MobileTwinnedAppServerTsx::accept_header_has_3gpp_ics(pjsip_msg* req)
+bool MobileTwinnedAppServerTsx::accept_contact_header_has_3gpp_ics(pjsip_msg* req)
 {
   // Loop through the feature list on every Accept-Contact header
   // to check whether any contain 'g.3gpp.ics'
-  bool accept_header_has_3gpp_ics = false;
+  bool accept_contact_header_has_3gpp_ics = false;
   pjsip_accept_contact_hdr* accept_header =
       (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(req,
                                                             &STR_ACCEPT_CONTACT,
                                                             NULL);
-  while ((accept_header != NULL) && (!accept_header_has_3gpp_ics))
+  while ((accept_header != NULL) && (!accept_contact_header_has_3gpp_ics))
   {
     for (pjsip_param* feature_param = accept_header->feature_set.next;
          (feature_param != &accept_header->feature_set) &&
-         (!accept_header_has_3gpp_ics);
+         (!accept_contact_header_has_3gpp_ics);
          feature_param = feature_param->next)
     {
-      accept_header_has_3gpp_ics =
+      accept_contact_header_has_3gpp_ics =
                          (pj_stricmp(&feature_param->name, &STR_3GPP_ICS) == 0);
     }
 
@@ -267,5 +269,5 @@ bool MobileTwinnedAppServerTsx::accept_header_has_3gpp_ics(pjsip_msg* req)
                                                            accept_header->next);
   }
 
-  return accept_header_has_3gpp_ics;
+  return accept_contact_header_has_3gpp_ics;
 }

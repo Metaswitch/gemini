@@ -96,6 +96,7 @@ public:
                             std::string twin_prefix = "111");
 
   // Check the list of expected_params are found in the list of actual_params.
+  // The actual parameters are a vector containing the list of pjsip_params from each header
   bool check_params_multiple_headers(std::vector<pjsip_param*> actual_params, std::unordered_map<std::string, std::string>& expected_params)
   {
     for (std::unordered_map<std::string, std::string>::const_iterator exp = expected_params.begin();
@@ -108,9 +109,9 @@ public:
            ((act != actual_params.end()) && (!found_parameter));
            ++act)
       {
-        pj_str_t header_name = pj_str((char*)exp->first.c_str());
-        pjsip_param* param = pjsip_param_find(*act, &header_name);
-        found_parameter = !((param == NULL) || (PJUtils::pj_str_to_string(&param->value) != exp->second));
+        pj_str_t parameter_name = pj_str((char*)exp->first.c_str());
+        pjsip_param* param = pjsip_param_find(*act, &parameter_name);
+        found_parameter = ((param != NULL) && (PJUtils::pj_str_to_string(&param->value) == exp->second));
       }
 
       if (!found_parameter)
@@ -307,7 +308,7 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
   }
 
   std::unordered_map<std::string, std::string> expected_reject_params;
-  expected_reject_params[PJUtils::pj_str_to_string(&STR_PHONE)] = "";
+  expected_reject_params["+sip.phone"] = "";
   EXPECT_TRUE(check_params_multiple_headers(reject_params, expected_reject_params));
   EXPECT_THAT(mobile, ReqUriEquals("sip:1116505551234@homedomain"));
 

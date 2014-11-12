@@ -130,7 +130,7 @@ private:
   ///
   /// @param req            - The request to check
   /// @returns whether there's the matching feature
-  bool accept_header_has_3gpp_ics(pjsip_msg* req);
+  bool accept_contact_header_has_3gpp_ics(pjsip_msg* req);
 
   /// Fork ID for the INVITE that has been sent on to the mobile device.
   int _mobile_fork_id;
