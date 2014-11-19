@@ -14,7 +14,7 @@ and can be run on the Sprout nodes or as a standalone node. It is built as part 
 ## Gemini Configuration
 
 Gemini is configured in the subscriber's IFCs, and is registered as a general terminating AS for INVITE and SUBSCRIBE requests.
-It has a mandatory "twin-prefix" parameter - this specifies the prefix to apply to the user part of URIs to route to the mobile twin. The application server name should be set to `mobile-twinned` @ the cluster of nodes running the Gemini application servers (which will be the Sprout cluster, or a standalone application server cluster). 
+It has an optional "twin-prefix" parameter - this specifies the prefix to apply to the user part of URIs to route to the mobile twin. The application server name should be set to `mobile-twinned` @ the cluster of nodes running the Gemini application servers (which will be the Sprout cluster, or a standalone application server cluster). 
 
 An example IFC is:
 
