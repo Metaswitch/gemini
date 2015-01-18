@@ -308,7 +308,8 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
   }
 
   std::unordered_map<std::string, std::string> expected_reject_params;
-  expected_reject_params["+sip.phone"] = "";
+  expected_reject_params["+sip.with-twin"] = "";
+  expected_reject_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "";
   EXPECT_TRUE(check_params_multiple_headers(reject_params, expected_reject_params));
   EXPECT_THAT(mobile, ReqUriEquals("sip:1116505551234@homedomain"));
 
@@ -365,7 +366,9 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
                                                                             accept_header->next);
     }
 
-    EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_reject_params));
+    std::unordered_map<std::string, std::string> expected_second_attempt_params;
+    expected_second_attempt_params["+sip.with-twin"] = "";
+    EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_second_attempt_params));
 
     msg._status = "200 OK";
     rsp = parse_msg(msg.get_response());
