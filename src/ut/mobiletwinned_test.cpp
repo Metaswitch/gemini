@@ -308,7 +308,8 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
   }
 
   std::unordered_map<std::string, std::string> expected_reject_params;
-  expected_reject_params["+sip.phone"] = "";
+  expected_reject_params["+sip.with-twin"] = "";
+  expected_reject_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "";
   EXPECT_TRUE(check_params_multiple_headers(reject_params, expected_reject_params));
   EXPECT_THAT(mobile, ReqUriEquals("sip:1116505551234@homedomain"));
 
@@ -322,6 +323,12 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
   while (accept_header != NULL)
   {
     accept_params.push_back(&accept_header->feature_set);
+    if (pjsip_param_find(&accept_header->feature_set, &STR_3GPP_ICS) != NULL)
+    {
+      // The Accept-Contact headers we add should have ";explicit;require" set
+      EXPECT_TRUE(accept_header->explicit_match);
+      EXPECT_TRUE(accept_header->required_match);
+    }
     accept_header = (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(mobile,
                                                                           &STR_ACCEPT_CONTACT,
                                                                           accept_header->next);
@@ -330,6 +337,23 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
   std::unordered_map<std::string, std::string> expected_accept_params;
   expected_accept_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "";
   EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_accept_params));
+
+  // Extract all the Reject-Contact headers.
+  reject_params.clear();
+  reject_header = (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(mobile,
+                                                                        &STR_REJECT_CONTACT,
+                                                                        NULL);
+  while (reject_header != NULL)
+  {
+    reject_params.push_back(&reject_header->feature_set);
+    reject_header = (pjsip_reject_contact_hdr*)pjsip_msg_find_hdr_by_name(mobile,
+                                                                          &STR_REJECT_CONTACT,
+                                                                          reject_header->next);
+  }
+
+  expected_reject_params.clear();
+  expected_reject_params["+sip.with-twin"] = "";
+  EXPECT_TRUE(check_params_multiple_headers(reject_params, expected_reject_params));
 
   msg._status = status;
   pjsip_msg* rsp = parse_msg(msg.get_response());
@@ -360,12 +384,20 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
     while (accept_header != NULL)
     {
       accept_params.push_back(&accept_header->feature_set);
+      if (pjsip_param_find(&accept_header->feature_set, &STR_WITH_TWIN) != NULL)
+      {
+        // The Accept-Contact headers we add should have ";explicit;require" set
+        EXPECT_TRUE(accept_header->explicit_match);
+        EXPECT_TRUE(accept_header->required_match);
+      }
       accept_header = (pjsip_accept_contact_hdr*)pjsip_msg_find_hdr_by_name(req,
                                                                             &STR_ACCEPT_CONTACT,
                                                                             accept_header->next);
     }
 
-    EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_reject_params));
+    std::unordered_map<std::string, std::string> expected_second_attempt_params;
+    expected_second_attempt_params["+sip.with-twin"] = "";
+    EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_second_attempt_params));
 
     msg._status = "200 OK";
     rsp = parse_msg(msg.get_response());

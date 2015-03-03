@@ -140,16 +140,29 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
   // Set up the fork to the VoIP client.
   // To prevent both the VoIP client and native mobile service both
   // ringing on the same device, add a Reject-Contact header containing
-  // +sip.phone to the request headed for the VoIP client.
+  // +sip.with-twin to the request headed for the VoIP client. (We
+  // require that Gemini-compatible clients set this if they detect
+  // that they are colocated with a native client).
   LOG_DEBUG("Creating forked request to VoIP client");
   pj_pool_t* voip_pool = get_pool(voip_req);
   pjsip_reject_contact_hdr* reject_hdr =
                                    pjsip_reject_contact_hdr_create(voip_pool);
-  pjsip_param* phone = PJ_POOL_ALLOC_T(voip_pool, pjsip_param);
-  phone->name = STR_PHONE;
-  phone->value.slen = 0;
-  pj_list_insert_after(&reject_hdr->feature_set, phone);
+  pjsip_param* reject_colocated_voip = PJ_POOL_ALLOC_T(voip_pool, pjsip_param);
+  reject_colocated_voip->name = STR_WITH_TWIN;
+  reject_colocated_voip->value.slen = 0;
+  pj_list_insert_after(&reject_hdr->feature_set, reject_colocated_voip);
   pjsip_msg_add_hdr(voip_req, (pjsip_hdr*)reject_hdr);
+
+  // We also need a Reject-Contact header containg "g.3gpp.ics", to
+  // ensure that this never matches a native client without a
+  // colocated VoIP phone (which should be rung by the other fork). 
+  pjsip_reject_contact_hdr* reject_hdr2 =
+                                   pjsip_reject_contact_hdr_create(voip_pool);
+  pjsip_param* reject_native = PJ_POOL_ALLOC_T(voip_pool, pjsip_param);
+  reject_native->name = STR_3GPP_ICS;
+  reject_native->value.slen = 0;
+  pj_list_insert_after(&reject_hdr2->feature_set, reject_native);
+  pjsip_msg_add_hdr(voip_req, (pjsip_hdr*)reject_hdr2);
 
   // Set up the fork to the native device.
   // Append the twin prefix (if set) to the request URI, and add an
@@ -159,11 +172,23 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
   add_twin_prefix(mobile_req->line.req.uri, twin_prefix, mobile_pool);
   pjsip_accept_contact_hdr* accept_hdr =
                                    pjsip_accept_contact_hdr_create(mobile_pool);
-  pjsip_param* accept_param = PJ_POOL_ALLOC_T(mobile_pool, pjsip_param);
-  accept_param->name = STR_3GPP_ICS;
-  accept_param->value.slen = 0;
-  pj_list_insert_after(&accept_hdr->feature_set, accept_param);
+  accept_hdr->explicit_match = true;
+  accept_hdr->required_match = true;
+  pjsip_param* force_native = PJ_POOL_ALLOC_T(mobile_pool, pjsip_param);
+  force_native->name = STR_3GPP_ICS;
+  force_native->value.slen = 0;
+  pj_list_insert_after(&accept_hdr->feature_set, force_native);
   pjsip_msg_add_hdr(mobile_req, (pjsip_hdr*)accept_hdr);
+
+  // Add Reject-Contact "+sip.with-twin", to guard against the
+  // unexpected case where a phone specifies both "+sip.with-twin" and "+g.3gpp.ics".
+  pjsip_reject_contact_hdr* reject_hdr3 =
+                                   pjsip_reject_contact_hdr_create(mobile_pool);
+  pjsip_param* reject_colocated_voip2 = PJ_POOL_ALLOC_T(mobile_pool, pjsip_param);
+  reject_colocated_voip2->name = STR_WITH_TWIN;
+  reject_colocated_voip2->value.slen = 0;
+  pj_list_insert_after(&reject_hdr3->feature_set, reject_colocated_voip2);
+  pjsip_msg_add_hdr(mobile_req, (pjsip_hdr*)reject_hdr3);
 
   // Report the fact we're forking the request to SAS, including
   // the new native mobile URI.
@@ -202,17 +227,17 @@ void MobileTwinnedAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
     SAS::Event event(trail(), SASEvent::FORKING_ON_480_RSP, 0);
     SAS::report_event(event);
 
-    // Create an Accept-Contact header and add the "+sip.phone" parameter.
+    // Create an Accept-Contact header and add the "+sip.with-twin" parameter.
     pjsip_msg* req = original_request();
     pj_pool_t* pool = get_pool(req);
 
     pjsip_accept_contact_hdr* new_hdr = pjsip_accept_contact_hdr_create(pool);
     new_hdr->explicit_match = true;
     new_hdr->required_match = true;
-    pjsip_param* phone = PJ_POOL_ALLOC_T(pool, pjsip_param);
-    phone->name = STR_PHONE;
-    phone->value.slen = 0;
-    pj_list_insert_after(&new_hdr->feature_set, phone);
+    pjsip_param* force_twinned = PJ_POOL_ALLOC_T(pool, pjsip_param);
+    force_twinned->name = STR_WITH_TWIN;
+    force_twinned->value.slen = 0;
+    pj_list_insert_after(&new_hdr->feature_set, force_twinned);
     pjsip_msg_add_hdr(req, (pjsip_hdr*)new_hdr);
 
     send_request(req);
