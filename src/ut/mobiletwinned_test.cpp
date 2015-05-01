@@ -97,7 +97,8 @@ public:
 
   // Check the list of expected_params are found in the list of actual_params.
   // The actual parameters are a vector containing the list of pjsip_params from each header
-  bool check_params_multiple_headers(std::vector<pjsip_param*> actual_params, std::unordered_map<std::string, std::string>& expected_params)
+  bool check_params_multiple_headers(std::vector<pjsip_param*> actual_params, 
+                                     std::unordered_map<std::string, std::string>& expected_params)
   {
     for (std::unordered_map<std::string, std::string>::const_iterator exp = expected_params.begin();
          exp != expected_params.end();
@@ -309,7 +310,7 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
 
   std::unordered_map<std::string, std::string> expected_reject_params;
   expected_reject_params["+sip.with-twin"] = "";
-  expected_reject_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "";
+  expected_reject_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "\"server,principal\"";
   EXPECT_TRUE(check_params_multiple_headers(reject_params, expected_reject_params));
   EXPECT_THAT(mobile, ReqUriEquals("sip:1116505551234@homedomain"));
 
@@ -335,7 +336,7 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
   }
 
   std::unordered_map<std::string, std::string> expected_accept_params;
-  expected_accept_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "";
+  expected_accept_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "\"server,principal\"";
   EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_accept_params));
 
   // Extract all the Reject-Contact headers.
@@ -441,7 +442,7 @@ void MobileTwinnedAppServerTest::test_with_g_3gpp_ics(std::string method,
 {
   Message msg;
   msg._method = method;
-  msg._extra = "Accept-Contact: *;audio\r\nAccept-Contact: *;g.3gpp.ics";
+  msg._extra = "Accept-Contact: *;audio\r\nAccept-Contact: *;+g.3gpp.ics=\"server,principal\"";
   MobileTwinnedAppServerTsx as_tsx(_helper);
 
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
@@ -475,7 +476,7 @@ void MobileTwinnedAppServerTest::test_with_g_3gpp_ics(std::string method,
   }
 
   std::unordered_map<std::string, std::string> expected_accept_params;
-  expected_accept_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "";
+  expected_accept_params[PJUtils::pj_str_to_string(&STR_3GPP_ICS)] = "\"server,principal\"";
   expected_accept_params["audio"] = "";
   EXPECT_TRUE(check_params_multiple_headers(accept_params, expected_accept_params));
 

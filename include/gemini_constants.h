@@ -41,5 +41,6 @@
 
 const pj_str_t STR_TWIN_PRE = pj_str((char*)"twin-prefix");
 const pj_str_t STR_WITH_TWIN = pj_str((char*)"+sip.with-twin");
+const pj_str_t STR_3GPP_ICS = pj_str((char*)"+g.3gpp.ics");
 
 #endif
