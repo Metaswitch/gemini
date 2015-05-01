@@ -43,6 +43,9 @@
 #include "geminisasevent.h"
 #include "constants.h"
 
+const char* STR_SERVER = "server";
+const char* STR_PRINCIPAL = "principal";
+
 /// Returns a new MobileTwinnedAppServerTsx if the request is either a
 /// SUBSCRIBE or a INVITE.
 AppServerTsx* MobileTwinnedAppServer::get_app_tsx(AppServerTsxHelper* helper,
@@ -156,11 +159,13 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
   // We also need a Reject-Contact header containg "g.3gpp.ics", to
   // ensure that this never matches a native client without a
   // colocated VoIP phone (which should be rung by the other fork). 
+  std::string g_3gpp_ics = std::string("\"") + STR_SERVER + "," 
+                                             + STR_PRINCIPAL + "\"";
   pjsip_reject_contact_hdr* reject_hdr2 =
                                    pjsip_reject_contact_hdr_create(voip_pool);
   pjsip_param* reject_native = PJ_POOL_ALLOC_T(voip_pool, pjsip_param);
   reject_native->name = STR_3GPP_ICS;
-  reject_native->value.slen = 0;
+  reject_native->value = pj_strdup3(voip_pool, g_3gpp_ics.c_str());
   pj_list_insert_after(&reject_hdr2->feature_set, reject_native);
   pjsip_msg_add_hdr(voip_req, (pjsip_hdr*)reject_hdr2);
 
@@ -176,7 +181,7 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
   accept_hdr->required_match = true;
   pjsip_param* force_native = PJ_POOL_ALLOC_T(mobile_pool, pjsip_param);
   force_native->name = STR_3GPP_ICS;
-  force_native->value.slen = 0;
+  force_native->value = pj_strdup3(mobile_pool, g_3gpp_ics.c_str());
   pj_list_insert_after(&accept_hdr->feature_set, force_native);
   pjsip_msg_add_hdr(mobile_req, (pjsip_hdr*)accept_hdr);
 
@@ -284,8 +289,13 @@ bool MobileTwinnedAppServerTsx::accept_contact_header_has_3gpp_ics(pjsip_msg* re
          (!accept_contact_header_has_3gpp_ics);
          feature_param = feature_param->next)
     {
-      accept_contact_header_has_3gpp_ics =
-                         (pj_stricmp(&feature_param->name, &STR_3GPP_ICS) == 0);
+      if (pj_stricmp(&feature_param->name, &STR_3GPP_ICS) == 0)
+      {
+        std::string ics_values = PJUtils::pj_str_to_string(&feature_param->value);
+        accept_contact_header_has_3gpp_ics = 
+            ((ics_values.find(STR_SERVER) != std::string::npos) ||         
+            (ics_values.find(STR_PRINCIPAL) != std::string::npos));
+      }
     }
 
     accept_header =
