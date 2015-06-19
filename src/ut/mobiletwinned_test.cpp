@@ -258,7 +258,7 @@ using MobileTwinnedAS::Message;
 MATCHER_P(ReqUriEquals, uri, "")
 {
   std::string arg_uri = PJUtils::uri_to_string(PJSIP_URI_IN_REQ_URI, arg->line.req.uri);
-  LOG_DEBUG("arg_uri %s", arg_uri.c_str());
+  TRC_DEBUG("arg_uri %s", arg_uri.c_str());
   return arg_uri == uri;
 }
 

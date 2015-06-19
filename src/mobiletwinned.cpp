@@ -79,13 +79,13 @@ MobileTwinnedAppServerTsx::~MobileTwinnedAppServerTsx()
 
 void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
 {
-  LOG_DEBUG("MobileTwinnedAS - process request %p", req);
+  TRC_DEBUG("MobileTwinnedAS - process request %p", req);
 
   pjsip_uri* req_uri = req->line.req.uri;
 
   if (!PJSIP_URI_SCHEME_IS_SIP(req_uri))
   {
-    LOG_DEBUG("Request URI isn't a SIP URI");
+    TRC_DEBUG("Request URI isn't a SIP URI");
     pjsip_msg* rsp = create_response(req, PJSIP_SC_TEMPORARILY_UNAVAILABLE);
     send_response(rsp);
     free_msg(req);
@@ -96,7 +96,7 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
   // request targeted at a specific VoIP client. Set the single_target flag.
   if (pjsip_param_find(&((pjsip_sip_uri*)req_uri)->other_param, &STR_GR))
   {
-    LOG_DEBUG("Call is targeted at a specific VoIP client");
+    TRC_DEBUG("Call is targeted at a specific VoIP client");
 
     SAS::Event event(trail(), SASEvent::CALL_TO_VOIP_CLIENT, 0);
     SAS::report_event(event);
@@ -121,7 +121,7 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
   // prefix to the request URI and set the single_target flag
   if (accept_contact_header_has_3gpp_ics(req))
   {
-    LOG_DEBUG("Call is targeted at the native device");
+    TRC_DEBUG("Call is targeted at the native device");
 
     add_twin_prefix(req_uri, twin_prefix, get_pool(req));
 
@@ -146,7 +146,7 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
   // +sip.with-twin to the request headed for the VoIP client. (We
   // require that Gemini-compatible clients set this if they detect
   // that they are colocated with a native client).
-  LOG_DEBUG("Creating forked request to VoIP client");
+  TRC_DEBUG("Creating forked request to VoIP client");
   pj_pool_t* voip_pool = get_pool(voip_req);
   pjsip_reject_contact_hdr* reject_hdr =
                                    pjsip_reject_contact_hdr_create(voip_pool);
@@ -172,7 +172,7 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
   // Set up the fork to the native device.
   // Append the twin prefix (if set) to the request URI, and add an
   // Accept-Contact header specifying g.3gpp.ics.
-  LOG_DEBUG("Creating forked request to twinned mobile device");
+  TRC_DEBUG("Creating forked request to twinned mobile device");
   pj_pool_t* mobile_pool = get_pool(mobile_req);
   add_twin_prefix(mobile_req->line.req.uri, twin_prefix, mobile_pool);
   pjsip_accept_contact_hdr* accept_hdr =
@@ -221,14 +221,14 @@ void MobileTwinnedAppServerTsx::on_response(pjsip_msg* rsp, int fork_id)
   {
     if (_single_target)
     {
-      LOG_DEBUG("No retry as original call was targeted at a specific device");
+      TRC_DEBUG("No retry as original call was targeted at a specific device");
       SAS::Event event(trail(), SASEvent::NO_RETRY_ON_480_RSP, 0);
       SAS::report_event(event);
       send_response(rsp);
       return;
     }
 
-    LOG_DEBUG("Creating a new fork to mobile hosted VoIP clients");
+    TRC_DEBUG("Creating a new fork to mobile hosted VoIP clients");
     SAS::Event event(trail(), SASEvent::FORKING_ON_480_RSP, 0);
     SAS::report_event(event);
 
