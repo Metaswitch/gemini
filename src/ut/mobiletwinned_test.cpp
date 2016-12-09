@@ -97,7 +97,7 @@ public:
 
   // Check the list of expected_params are found in the list of actual_params.
   // The actual parameters are a vector containing the list of pjsip_params from each header
-  bool check_params_multiple_headers(std::vector<pjsip_param*> actual_params, 
+  bool check_params_multiple_headers(std::vector<pjsip_param*> actual_params,
                                      std::unordered_map<std::string, std::string>& expected_params)
   {
     for (std::unordered_map<std::string, std::string>::const_iterator exp = expected_params.begin();
@@ -280,7 +280,7 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
     // Use a sequence to ensure this happens in order.
     InSequence seq;
     EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
-    EXPECT_CALL(*_helper, clone_request(req))
+    EXPECT_CALL(*_helper, clone_msg(req))
       .WillOnce(Return(mobile));
     EXPECT_CALL(*_helper, get_pool(req))
       .WillOnce(Return(stack_data.pool));
