@@ -280,7 +280,7 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
     // Use a sequence to ensure this happens in order.
     InSequence seq;
     EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
-    EXPECT_CALL(*_helper, clone_msg(req))
+    EXPECT_CALL(*_helper, clone_request(req))
       .WillOnce(Return(mobile));
     EXPECT_CALL(*_helper, get_pool(req))
       .WillOnce(Return(stack_data.pool));
