@@ -271,7 +271,7 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
   msg._method = method;
   msg._extra = extra;
   MobileTwinnedAppServerTsx as_tsx;
-  as_tsx.init_tsx(_helper);
+  as_tsx.set_helper(_helper);
 
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
   hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
@@ -422,7 +422,7 @@ void MobileTwinnedAppServerTest::test_with_gr(std::string method,
   msg._method = method;
   msg._parameters = ";gr=hello";
   MobileTwinnedAppServerTsx as_tsx;
-  as_tsx.init_tsx(_helper);
+  as_tsx.set_helper(_helper);
 
   pjsip_msg* req = parse_msg(msg.get_request());
   {
@@ -446,7 +446,7 @@ void MobileTwinnedAppServerTest::test_with_g_3gpp_ics(std::string method,
   msg._method = method;
   msg._extra = "Accept-Contact: *;audio\r\nAccept-Contact: *;+g.3gpp.ics=\"server,principal\"";
   MobileTwinnedAppServerTsx as_tsx;
-  as_tsx.init_tsx(_helper);
+  as_tsx.set_helper(_helper);
 
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
   hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=" + twin_prefix, stack_data.pool);
@@ -636,7 +636,7 @@ TEST_F(MobileTwinnedAppServerTest, NoSIPURI)
   msg._todomain = "";
 
   MobileTwinnedAppServerTsx as_tsx;
-  as_tsx.init_tsx(_helper);
+  as_tsx.set_helper(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {

@@ -48,7 +48,7 @@ const char* STR_PRINCIPAL = "principal";
 
 /// Returns a new MobileTwinnedAppServerTsx if the request is either a
 /// SUBSCRIBE or a INVITE.
-AppServerTsx* MobileTwinnedAppServer::get_app_tsx(SproutletProxy* proxy,
+AppServerTsx* MobileTwinnedAppServer::get_app_tsx(SproutletHelper* helper,
                                                   pjsip_msg* req,
                                                   pjsip_sip_uri*& next_hop,
                                                   pj_pool_t* pool,
