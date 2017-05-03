@@ -97,7 +97,7 @@ public:
 
   // Check the list of expected_params are found in the list of actual_params.
   // The actual parameters are a vector containing the list of pjsip_params from each header
-  bool check_params_multiple_headers(std::vector<pjsip_param*> actual_params, 
+  bool check_params_multiple_headers(std::vector<pjsip_param*> actual_params,
                                      std::unordered_map<std::string, std::string>& expected_params)
   {
     for (std::unordered_map<std::string, std::string>::const_iterator exp = expected_params.begin();
@@ -270,7 +270,8 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
   Message msg;
   msg._method = method;
   msg._extra = extra;
-  MobileTwinnedAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx;
+  as_tsx.set_helper(_helper);
 
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
   hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
@@ -420,7 +421,8 @@ void MobileTwinnedAppServerTest::test_with_gr(std::string method,
   Message msg;
   msg._method = method;
   msg._parameters = ";gr=hello";
-  MobileTwinnedAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx;
+  as_tsx.set_helper(_helper);
 
   pjsip_msg* req = parse_msg(msg.get_request());
   {
@@ -443,7 +445,8 @@ void MobileTwinnedAppServerTest::test_with_g_3gpp_ics(std::string method,
   Message msg;
   msg._method = method;
   msg._extra = "Accept-Contact: *;audio\r\nAccept-Contact: *;+g.3gpp.ics=\"server,principal\"";
-  MobileTwinnedAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx;
+  as_tsx.set_helper(_helper);
 
   pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
   hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=" + twin_prefix, stack_data.pool);
@@ -495,16 +498,17 @@ TEST_F(MobileTwinnedAppServerTest, CreateMobileTwinnedAppServer)
   // Test creating an app server transaction with an invalid method -
   // it shouldn't be created.
   Message msg;
+  pjsip_sip_uri* uri = NULL;
   msg._method = "OPTIONS";
   pjsip_msg* req = parse_msg(msg.get_request());
-  MobileTwinnedAppServerTsx* as_tsx = (MobileTwinnedAppServerTsx*)as->get_app_tsx(_helper, req);
+  MobileTwinnedAppServerTsx* as_tsx = (MobileTwinnedAppServerTsx*)as->get_app_tsx(NULL, req, uri, NULL, 0);
   EXPECT_TRUE(as_tsx == NULL);
 
   // Try with a valid method (INVITE). This creates the application server
   // transaction.
   msg._method = "INVITE";
   req = parse_msg(msg.get_request());
-  as_tsx = (MobileTwinnedAppServerTsx*)as->get_app_tsx(_helper, req);
+  as_tsx = (MobileTwinnedAppServerTsx*)as->get_app_tsx(NULL, req, uri, NULL, 0);
   EXPECT_TRUE(as_tsx != NULL);
   delete as_tsx; as_tsx = NULL;
 
@@ -512,7 +516,7 @@ TEST_F(MobileTwinnedAppServerTest, CreateMobileTwinnedAppServer)
   // transaction.
   msg._method = "SUBSCRIBE";
   req = parse_msg(msg.get_request());
-  as_tsx = (MobileTwinnedAppServerTsx*)as->get_app_tsx(_helper, req);
+  as_tsx = (MobileTwinnedAppServerTsx*)as->get_app_tsx(NULL, req, uri, NULL, 0);
   EXPECT_TRUE(as_tsx != NULL);
   delete as_tsx; as_tsx = NULL;
 
@@ -631,7 +635,8 @@ TEST_F(MobileTwinnedAppServerTest, NoSIPURI)
   msg._toscheme = "tel";
   msg._todomain = "";
 
-  MobileTwinnedAppServerTsx as_tsx(_helper);
+  MobileTwinnedAppServerTsx as_tsx;
+  as_tsx.set_helper(_helper);
   pjsip_msg* req = parse_msg(msg.get_request());
   pjsip_msg* rsp = parse_msg(msg.get_response());
   {

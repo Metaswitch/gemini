@@ -70,11 +70,17 @@ public:
   /// does not want to process the request, or create a suitable object
   /// derived from the AppServerTsx class to process the request.
   ///
-  /// @param  helper        - The service helper to use to perform
-  ///                         the underlying service-related processing.
+  /// @param  helper        - The Sproutlet helper.
   /// @param  req           - The received request message.
-  virtual AppServerTsx* get_app_tsx(AppServerTsxHelper* helper,
-                                    pjsip_msg* req);
+  /// @param  next_hop      - The Sproutlet can use this field to specify a
+  ///                         next hop URI when it returns a NULL Tsx.
+  /// @param  pool          - The pool for creating the next_hop uri.
+  /// @param  trail         - The SAS trail id for the message.
+  virtual AppServerTsx* get_app_tsx(SproutletHelper* helper,
+                                    pjsip_msg* req,
+                                    pjsip_sip_uri*& next_hop,
+                                    pj_pool_t* pool,
+                                    SAS::TrailId trail);
 };
 
 /// The MobileTwinnedAppServerTsx class subclasses AppServerTsx and provides
@@ -86,7 +92,7 @@ class MobileTwinnedAppServerTsx : public AppServerTsx
 {
 public:
   /// Constructor.
-  MobileTwinnedAppServerTsx(AppServerTsxHelper* helper);
+  MobileTwinnedAppServerTsx();
 
   /// Virtual destructor.
   virtual ~MobileTwinnedAppServerTsx();

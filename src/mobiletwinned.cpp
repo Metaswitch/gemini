@@ -48,8 +48,11 @@ const char* STR_PRINCIPAL = "principal";
 
 /// Returns a new MobileTwinnedAppServerTsx if the request is either a
 /// SUBSCRIBE or a INVITE.
-AppServerTsx* MobileTwinnedAppServer::get_app_tsx(AppServerTsxHelper* helper,
-                                                 pjsip_msg* req)
+AppServerTsx* MobileTwinnedAppServer::get_app_tsx(SproutletHelper* helper,
+                                                  pjsip_msg* req,
+                                                  pjsip_sip_uri*& next_hop,
+                                                  pj_pool_t* pool,
+                                                  SAS::TrailId trail)
 {
   if ((req->line.req.method.id != PJSIP_INVITE_METHOD) &&
       (pjsip_method_cmp(&req->line.req.method, pjsip_get_subscribe_method())))
@@ -59,13 +62,13 @@ AppServerTsx* MobileTwinnedAppServer::get_app_tsx(AppServerTsxHelper* helper,
   }
 
   MobileTwinnedAppServerTsx* mobile_twinned_tsx =
-                                          new MobileTwinnedAppServerTsx(helper);
+                                          new MobileTwinnedAppServerTsx();
   return mobile_twinned_tsx;
 }
 
 /// Constructor
-MobileTwinnedAppServerTsx::MobileTwinnedAppServerTsx(AppServerTsxHelper* helper) :
-  AppServerTsx(helper),
+MobileTwinnedAppServerTsx::MobileTwinnedAppServerTsx() :
+  AppServerTsx(),
   _mobile_fork_id(0),
   _attempted_mobile_voip_client(false),
   _single_target(false)
@@ -158,8 +161,8 @@ void MobileTwinnedAppServerTsx::on_initial_request(pjsip_msg* req)
 
   // We also need a Reject-Contact header containg "g.3gpp.ics", to
   // ensure that this never matches a native client without a
-  // colocated VoIP phone (which should be rung by the other fork). 
-  std::string g_3gpp_ics = std::string("\"") + STR_SERVER + "," 
+  // colocated VoIP phone (which should be rung by the other fork).
+  std::string g_3gpp_ics = std::string("\"") + STR_SERVER + ","
                                              + STR_PRINCIPAL + "\"";
   pjsip_reject_contact_hdr* reject_hdr2 =
                                    pjsip_reject_contact_hdr_create(voip_pool);
@@ -292,8 +295,8 @@ bool MobileTwinnedAppServerTsx::accept_contact_header_has_3gpp_ics(pjsip_msg* re
       if (pj_stricmp(&feature_param->name, &STR_3GPP_ICS) == 0)
       {
         std::string ics_values = PJUtils::pj_str_to_string(&feature_param->value);
-        accept_contact_header_has_3gpp_ics = 
-            ((ics_values.find(STR_SERVER) != std::string::npos) ||         
+        accept_contact_header_has_3gpp_ics =
+            ((ics_values.find(STR_SERVER) != std::string::npos) ||
             (ics_values.find(STR_PRINCIPAL) != std::string::npos));
       }
     }
