@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# @file gemini-as.plugin_conf
+#
+# Copyright (C) 2018  Metaswitch Networks Ltd
+#
+# This script generates the gemini-specific command-line arguments that must
+# be passed to sprout.  This is invoked from the sprout init.d script, and
+# outputs a simple string list of parameters to pass to sprout on startup.
+#
+# All parameters are of the form:
+#   --plugin-option <sproutlet name>,<arg name>,<value>
+#
+
+# Read in deployment configuration.
+. /etc/clearwater/config
+
+GEMINI_AS_ARGS=""
+
+# Add parameters if they are configured in the deployment config.
+[ "$gemini" = "" ] \
+  || GEMINI_AS_ARGS="$GEMINI_AS_ARGS --plugin-option gemini-as,gemini,$gemini"
+
+[ "$gemini_prefix" = "" ] \
+  || GEMINI_AS_ARGS="$GEMINI_AS_ARGS --plugin-option gemini-as,gemini_prefix,$gemini_prefix"
+
+[ "$gemini_uri" = "" ] \
+  || GEMINI_AS_ARGS="$GEMINI_AS_ARGS --plugin-option gemini-as,gemini_uri,$gemini_uri"
+
+# Finally, echo the collected arguments to stdout.  The sprout startup script
+# that invoked this script will append these arguments to those passed to
+# the sprout process.
+echo $GEMINI_AS_ARGS
