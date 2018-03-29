@@ -1,0 +1,2 @@
+build/bin/gemini-as.so usr/share/clearwater/sprout/plugins
+gemini-as.root/* /

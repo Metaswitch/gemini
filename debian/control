@@ -1,0 +1,24 @@
+Source: gemini-as
+Section: network
+Priority: optional
+# This field must stay as 'Project Clearwater Maintainers', as
+# clearwater-infrastructure explicitly checks for packages of this name when
+# updating
+Maintainer: Project Clearwater Maintainers <maintainers@projectclearwater.org>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.2
+Homepage: http://projectclearwater.org/
+
+Package: gemini-as
+Architecture: any
+Depends: sprout-base
+Suggests: gemini-as-dbg
+Description: gemini, the Mobile Twinning Application Server plug-in
+
+Package: gemini-as-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends: gemini-as (= ${binary:Version})
+Recommends: sprout-base-dbg
+Description: Debugging symbols for gemini, the Mobile Twinning Application Server plug-in

@@ -1,0 +1,7 @@
+debhelper
+*debhelper.log
+*substvars
+changelog
+files
+/gemini-as/
+/gemini-as-dbg/

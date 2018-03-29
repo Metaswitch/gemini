@@ -15,10 +15,9 @@
 #include <unordered_map>
 #include "gtest/gtest.h"
 
-#include "siptest.hpp"
+#include "sip_common.hpp"
 #include "mockappserver.hpp"
 #include "mobiletwinned.h"
-#include "stack.h"
 #include "pjutils.h"
 #include "custom_headers.h"
 #include "constants.h"
@@ -27,27 +26,28 @@
 using namespace std;
 using testing::InSequence;
 using testing::Return;
+using testing::_;
 
 /// Fixture for MobileTwinnedAppServerTest.
 ///
-/// This derives from SipTest to ensure PJSIP is set up correctly, but doesn't
+/// This derives from SipCommonTest to ensure PJSIP is set up correctly, but doesn't
 /// actually use most of its function (and doesn't register a module).
-class MobileTwinnedAppServerTest : public SipTest
+class MobileTwinnedAppServerTest : public SipCommonTest
 {
 public:
   static void SetUpTestCase()
   {
-    SipTest::SetUpTestCase();
+    SipCommonTest::SetUpTestCase();
     _helper = new MockAppServerTsxHelper();
   }
 
   static void TearDownTestCase()
   {
     delete _helper; _helper = NULL;
-    SipTest::TearDownTestCase();
+    SipCommonTest::TearDownTestCase();
   }
 
-  MobileTwinnedAppServerTest() : SipTest(NULL)
+  MobileTwinnedAppServerTest() : SipCommonTest()
   {
   }
 
@@ -248,8 +248,8 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
   MobileTwinnedAppServerTsx as_tsx;
   as_tsx.set_helper(_helper);
 
-  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
-  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", stack_data.pool);
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(_pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=111", _pool);
   pjsip_msg* req = parse_msg(msg.get_request());
   pjsip_msg* mobile = parse_msg(msg.get_request());
   {
@@ -259,9 +259,9 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
     EXPECT_CALL(*_helper, clone_request(req))
       .WillOnce(Return(mobile));
     EXPECT_CALL(*_helper, get_pool(req))
-      .WillOnce(Return(stack_data.pool));
+      .WillOnce(Return(_pool));
     EXPECT_CALL(*_helper, get_pool(mobile))
-      .WillOnce(Return(stack_data.pool));
+      .WillOnce(Return(_pool));
     EXPECT_CALL(*_helper, send_request(req));
     EXPECT_CALL(*_helper, send_request(mobile))
       .WillOnce(Return(MOBILE_FORK_ID));
@@ -343,7 +343,7 @@ void MobileTwinnedAppServerTest::test_with_two_forks(std::string method,
       EXPECT_CALL(*_helper, original_request())
         .WillOnce(Return(req));
       EXPECT_CALL(*_helper, get_pool(req))
-        .WillOnce(Return(stack_data.pool));
+        .WillOnce(Return(_pool));
       EXPECT_CALL(*_helper, send_request(req)).
        WillOnce(Return(MOBILE_VOIP_FORK_ID));
       EXPECT_CALL(*_helper, free_msg(rsp));
@@ -423,15 +423,15 @@ void MobileTwinnedAppServerTest::test_with_g_3gpp_ics(std::string method,
   MobileTwinnedAppServerTsx as_tsx;
   as_tsx.set_helper(_helper);
 
-  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(stack_data.pool);
-  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=" + twin_prefix, stack_data.pool);
+  pjsip_route_hdr* hdr = pjsip_rr_hdr_create(_pool);
+  hdr->name_addr.uri = PJUtils::uri_from_string("sip:mobile-twinned@gemini.homedomain;twin-prefix=" + twin_prefix, _pool);
   pjsip_msg* req = parse_msg(msg.get_request());
   {
     // Use a sequence to ensure this happens in order.
     InSequence seq;
     EXPECT_CALL(*_helper, route_hdr()).WillOnce(Return(hdr));
     EXPECT_CALL(*_helper, get_pool(req))
-       .WillOnce(Return(stack_data.pool));
+       .WillOnce(Return(_pool));
     EXPECT_CALL(*_helper, send_request(req))
       .WillOnce(Return(MOBILE_FORK_ID));
   }
